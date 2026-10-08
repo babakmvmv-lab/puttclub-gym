@@ -5342,6 +5342,47 @@ function skinMid(si,sw,a,b,out,o){const acc=new Map();for(const v of [a,b])for(l
   const e=[...acc.entries()].sort((x,y)=>y[1]-x[1]).slice(0,4);let s=0;e.forEach(x=>s+=x[1]);
   for(let k=0;k<4;k++){out.si[o*4+k]=e[k]?e[k][0]:0;out.sw[o*4+k]=e[k]?e[k][1]/s:0;}}
 
+/* surface labels (English, printed on the muscle belly; shown only for the exercise's target muscles under load) */
+const LABELS={pectoralis_major_sternocostal:['PECTORALIS MAJOR',4.2],deltoid_anterior:['ANTERIOR DELTOID',3.0],triceps_lateral:['TRICEPS BRACHII',2.6],
+  deltoid_lateral:['MIDDLE DELTOID',3.0],deltoid_posterior:['POSTERIOR DELTOID',2.8],biceps_brachii_long:['BICEPS BRACHII',2.4],latissimus_dorsi:['LATISSIMUS DORSI',4.4],
+  rectus_abdominis:['RECTUS ABDOMINIS',2.6],serratus_anterior:['SERRATUS ANTERIOR',2.6],rectus_femoris:['RECTUS FEMORIS',3.2],vastus_lateralis:['VASTUS LATERALIS',3.2],
+  gluteus_maximus:['GLUTEUS MAXIMUS',4.4],gastrocnemius_medial:['GASTROCNEMIUS',2.6],biceps_femoris_long:['BICEPS FEMORIS',2.8]};
+const LMAX=24,ROWH=128;
+function labelAtlas(texts){const W=2048,cv=document.createElement('canvas');cv.width=W;cv.height=ROWH*texts.length;const x=cv.getContext('2d');
+  const fs=Math.round(ROWH*.62);x.font=`700 ${fs}px "Times New Roman",Times,Georgia,serif`;x.textBaseline='middle';x.fillStyle='#fff';const sp=fs*.07,wf=[];
+  texts.forEach((t,r)=>{let w=0;for(const ch of t)w+=x.measureText(ch).width+sp;w-=sp;let px=(W-w)/2;const y=r*ROWH+ROWH*.54;
+    for(const ch of t){x.fillText(ch,px,y);px+=x.measureText(ch).width+sp;}wf.push((w+fs*.3)/W);});
+  const tx=new THREE.CanvasTexture(cv);tx.generateMipmaps=true;tx.minFilter=THREE.LinearMipmapLinearFilter;tx.magFilter=THREE.LinearFilter;tx.anisotropy=8;tx.needsUpdate=true;
+  return {tx,wf,aspect:wf.map(f=>f*W/ROWH)};}
+function buildLabels(D,P,info,VF,N,LU){
+  const parts=D.meta.parts,texts=[],inst=[];const aL=new Float32Array(N*4);for(let i=0;i<N;i++)aL[i*4+2]=-1;
+  const byPart=new Map();for(let i=0;i<N;i++){const c=info[i*4];if(c!==0&&c!==2)continue;const p=info[i*4+1]|0;if(!LABELS[parts[p][0]])continue;(byPart.get(p)||byPart.set(p,[]).get(p)).push(i);}
+  [...byPart.keys()].forEach(p=>{const tx=LABELS[parts[p][0]][0];if(!texts.includes(tx))texts.push(tx);});
+  if(!texts.length)return null;const A=labelAtlas(texts);
+  for(const [p,vs] of byPart){if(inst.length>=LMAX)break;const [tx,H]=LABELS[parts[p][0]],row=texts.indexOf(tx);
+    const c0=[0,0,0,0],c1=[0,0,0,0];for(const i of vs){const u=info[i*4+2],t=u<.18?c0:u>.82?c1:null;if(t){t[0]+=P[i*3];t[1]+=P[i*3+1];t[2]+=P[i*3+2];t[3]++;}}
+    if(!c0[3]||!c1[3])continue;const len=Math.hypot(c0[0]/c0[3]-c1[0]/c1[3],c0[1]/c0[3]-c1[1]/c1[3],c0[2]/c0[3]-c1[2]/c1[3]);
+    const bv=vs.filter(i=>info[i*4+2]>.3&&info[i*4+2]<.7).map(i=>VF[i]).sort((a,b)=>a-b);if(bv.length<8)continue;
+    const vc=bv[bv.length>>1],vr=bv[Math.floor(bv.length*.92)]-bv[Math.floor(bv.length*.08)];
+    let h=Math.min(H,vr*.55),w=h*A.aspect[row];if(w>len*.6){w=len*.6;h=w/A.aspect[row];}
+    const k=inst.length;for(const i of vs){aL[i*4]=((info[i*4+2]-.56)*len)/w+.5;aL[i*4+1]=(VF[i]-vc)/h+.5;aL[i*4+2]=k;aL[i*4+3]=row;}
+    // reference vertices for screen orientation: label centre, +s, +t (outer surface = farthest from body axis)
+    const pick=(ss,tt)=>{let best=-1,bd=1e9;for(const i of vs){const d=(aL[i*4]-ss)**2+(aL[i*4+1]-tt)**2;if(d>.02)continue;const r=Math.hypot(P[i*3],P[i*3+2]);const sc=d-r*.0004;if(sc<bd){bd=sc;best=i;}}return best;};
+    const ic=pick(.5,.5),is=pick(.85,.5),it=pick(.5,.95);if(ic<0||is<0||it<0)continue;
+    inst.push({p,g:D.gid[p],row,ref:[ic,is,it],fs:0,ft:0});LU.uLabW.value[k]=A.wf[row];}
+  LU.uLabTex.value=A.tx;LU.uLabRows.value=texts.length;return {aL,inst};}
+const _a=new THREE.Vector3(),_b=new THREE.Vector3(),_c=new THREE.Vector3();
+/* per frame: opacity from load (targets only) + keep text readable (no mirror / upside-down) from the current camera */
+function update(m,cam,LD,targets,mus){const L=m&&m.userData.lab;if(!L)return;const LU=m.userData.LU;
+  m.updateMatrixWorld();for(let k=0;k<L.inst.length;k++){const I=L.inst[k];const on=targets.includes(I.g)?1:0;
+    const ld=LD[I.g]||0;const a=on*mus*Math.min(1,Math.max(0,(ld-.3)/.25));LU.uLabA.value[k]=a*a*(3-2*a);if(!a)continue;
+    m.getVertexPosition(I.ref[0],_a);m.getVertexPosition(I.ref[1],_b);m.getVertexPosition(I.ref[2],_c);
+    [_a,_b,_c].forEach(v=>m.localToWorld(v).project(cam));
+    const sx=_b.x-_a.x,sy=(_b.y-_a.y),tx=_c.x-_a.x,ty=(_c.y-_a.y);
+    let fs=0,ft=0;if(sx*ty-sy*tx>0)ft=1;           // mirrored -> flip t
+    const SX=sx,SY=sy;const hor=Math.abs(SX)>Math.abs(SY)*.8;
+    if(hor?SX<0:SY>0){fs^=1;ft^=1;}                 // upside down -> rotate 180 (vertical text reads top-to-bottom)
+    I.fs=fs;I.ft=ft;LU.uLabF.value[k].set(fs,ft);}}
 function build(skinned,pk,fit,sculptFn,U){
   const D=data(),C=D.meta.chars[pk],raw=b64u8(window.ANAT.chars[pk]),nv=D.meta.nv;
   const q=new Int16Array(raw.buffer,0,nv*3),si8=new Uint8Array(raw.buffer,nv*6,nv*4),sw8=new Uint8Array(raw.buffer,nv*10,nv*4);
@@ -5363,6 +5404,12 @@ function build(skinned,pk,fit,sculptFn,U){
      skinMid(si,sw,a,b,out,o);S.attrs[0][o*4]=info[a*4];S.attrs[0][o*4+1]=info[a*4+1];S.attrs[0][o*4+3]=info[a*4+3];o++;}
    P=S.P;info=S.attrs[0];VF=S.attrs[3];si=out.si;sw=out.sw;I=new Uint32Array(S.I.length+keep.length);I.set(S.I);I.set(keep,S.I.length);}
   const N=P.length/3;
+  /* smooth the across-fibre coordinate on the fine mesh (coarse piecewise-linear field gives zig-zag striations) */
+  {const S=new Float32Array(N),C=new Float32Array(N);for(let it=0;it<6;it++){S.fill(0);C.fill(0);
+    for(let t=0;t<I.length;t+=3)for(let k=0;k<3;k++){const a=I[t+k],b=I[t+(k+1)%3];const ca=info[a*4];if((ca!==0&&ca!==2)||info[a*4+1]!==info[b*4+1])continue;S[a]+=VF[b];C[a]++;S[b]+=VF[a];C[b]++;}
+    for(let i=0;i<N;i++)if(C[i])VF[i]=.4*VF[i]+.6*S[i]/C[i];}}
+  /* drop intercostal sheets (class 4): they poke through serratus when the arm is raised */
+  {const k=[];for(let t=0;t<I.length;t+=3)if(info[I[t]*4]!==4)k.push(I[t],I[t+1],I[t+2]);I=new Uint32Array(k);}
   // bind-world (cm) -> mesh local
   const bmi=skinned.bindMatrix.clone().invert(),v=new THREE.Vector3();const Pl=new Float32Array(N*3);
   for(let i=0;i<N;i++){v.set(P[i*3],P[i*3+1],P[i*3+2]).applyMatrix4(bmi);Pl[i*3]=v.x;Pl[i*3+1]=v.y;Pl[i*3+2]=v.z;}
@@ -5370,7 +5417,8 @@ function build(skinned,pk,fit,sculptFn,U){
   g.setAttribute('position',new THREE.BufferAttribute(Pl,3));g.setIndex(new THREE.BufferAttribute(N>65535?I:new Uint16Array(I),1));
   g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(si,4));g.setAttribute('skinWeight',new THREE.BufferAttribute(sw,4));
   g.setAttribute('aInfo',new THREE.BufferAttribute(info,4));g.setAttribute('aV',new THREE.BufferAttribute(VF,1));
-  const m=new THREE.SkinnedMesh(g,material(U));m.name='anatomy';m.frustumCulled=false;m.castShadow=true;m.receiveShadow=true;
+  const LU={uLabTex:{value:null},uLabRows:{value:1},uLabA:{value:new Array(LMAX).fill(0)},uLabW:{value:new Array(LMAX).fill(.5)},uLabF:{value:Array.from({length:LMAX},()=>new THREE.Vector2())}};
+  const m=new THREE.SkinnedMesh(g,material(U,LU));m.userData.LU=LU;m.name='anatomy';m.frustumCulled=false;m.castShadow=true;m.receiveShadow=true;
   skinned.parent.add(m);m.position.copy(skinned.position);m.quaternion.copy(skinned.quaternion);m.scale.copy(skinned.scale);
   m.bind(skinned.skeleton,skinned.bindMatrix);
   if(fit&&sculptFn)sculptFn(m,fit);
@@ -5390,6 +5438,11 @@ function build(skinned,pk,fit,sculptFn,U){
   // per-vertex static attributes for the shader: load group, multiplier, special
   const aG=new Float32Array(N*3);for(let i=0;i<N;i++){const p=inf[i*4+1]|0;aG[i*3]=D.gid[p];aG[i*3+1]=D.gm[p];aG[i*3+2]=D.spec[p];}
   geo.setAttribute('aGrp',new THREE.BufferAttribute(aG,3));
+  {const np=D.meta.parts.length,cs=new Float64Array(np*4);for(let i=0;i<N;i++){const p=inf[i*4+1]|0;cs[p*4]+=P[i*3];cs[p*4+1]+=P[i*3+1];cs[p*4+2]+=P[i*3+2];cs[p*4+3]++;}
+   const aC=new Float32Array(N*3);for(let i=0;i<N;i++){const p=inf[i*4+1]|0,c=cs[p*4+3]||1;aC[i*3]=cs[p*4]/c;aC[i*3+1]=cs[p*4+1]/c;aC[i*3+2]=cs[p*4+2]/c;}
+   geo.setAttribute('aCen',new THREE.BufferAttribute(aC,3));}
+  try{const lab=buildLabels(D,P,info,VF,N,LU);if(lab){geo.setAttribute('aLab',new THREE.BufferAttribute(lab.aL,4));m.userData.lab=lab;}}catch(e){console.error('labels',e);}
+  if(!geo.attributes.aLab){const z=new Float32Array(N*4);for(let i=0;i<N;i++)z[i*4+2]=-1;geo.setAttribute('aLab',new THREE.BufferAttribute(z,4));}
   m.visible=false;m.userData.anat=true;
   return m;
 }
@@ -5399,16 +5452,17 @@ float anH(vec3 p){p=fract(p*.3183099+.1);p*=17.;return fract(p.x*p.y*p.z*(p.x+p.
 float anN(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);
  return mix(mix(mix(anH(i),anH(i+vec3(1,0,0)),f.x),mix(anH(i+vec3(0,1,0)),anH(i+vec3(1,1,0)),f.x),f.y),
             mix(mix(anH(i+vec3(0,0,1)),anH(i+vec3(1,0,1)),f.x),mix(anH(i+vec3(0,1,1)),anH(i+vec3(1,1,1)),f.x),f.y),f.z);}`;
-function material(U){
-  const m=new THREE.MeshPhysicalMaterial({color:0xffffff,roughness:.5,metalness:0,clearcoat:.55,clearcoatRoughness:.32,sheen:.4,sheenRoughness:.5,sheenColor:new THREE.Color(.25,.08,.07)});
+function material(U,LU){
+  const m=new THREE.MeshPhysicalMaterial({color:0xffffff,roughness:.5,metalness:0,clearcoat:.55,clearcoatRoughness:.32,sheen:.25,sheenRoughness:.55,sheenColor:new THREE.Color(.42,.16,.15),side:THREE.DoubleSide});
+  m.shadowSide=THREE.BackSide;
   m.onBeforeCompile=sh=>{
-    Object.assign(sh.uniforms,{uLoad:U.uLoad,uMus:U.uMus,uDbgA:DBG});
+    Object.assign(sh.uniforms,{uLoad:U.uLoad,uMus:U.uMus,uDbgA:DBG},LU||{});
     sh.vertexShader=sh.vertexShader
      .replace('#include <common>',`#include <common>
-attribute vec4 aInfo;attribute float aV;varying float vV;attribute vec3 aFib;attribute vec3 aGrp;uniform float uLoad[24];uniform float uMus;
+attribute vec4 aInfo;attribute vec3 aCen;varying vec3 vCen;attribute vec4 aLab;varying vec4 vLab;attribute float aV;varying float vV;attribute vec3 aFib;attribute vec3 aGrp;uniform float uLoad[24];uniform float uMus;
 varying vec4 vInfo;varying vec3 vFibB;varying vec3 vPB;varying vec3 vNB;varying float vLoad;varying float vSpec;`)
      .replace('#include <begin_vertex>',`#include <begin_vertex>
-vInfo=aInfo;vSpec=aGrp.z;vV=aV;
+vInfo=aInfo;vCen=aCen;vLab=aLab;vSpec=aGrp.z;vV=aV;
 #ifdef USE_SKINNING
 vPB=(bindMatrix*vec4(position,1.)).xyz;vFibB=normalize(mat3(bindMatrix)*aFib);vNB=normalize(mat3(bindMatrix)*normal);
 #else
@@ -5416,10 +5470,11 @@ vPB=position;vFibB=aFib;vNB=normal;
 #endif
 float L=uLoad[int(aGrp.x+.5)]*aGrp.y;vLoad=L;
 float uu=aInfo.z;float belly=pow(max(sin(3.14159*uu),0.),1.3);
-if(aInfo.x<.5||(aInfo.x>1.5&&aInfo.x<2.5))transformed+=normal*(.12+.55*L)*belly*step(.01,aGrp.y+.001);`);
+if(aInfo.x<.5||(aInfo.x>1.5&&aInfo.x<2.5))transformed+=normal*(.12+.55*L)*belly*step(.01,aGrp.y+.001);
+else if(aInfo.x<1.5)transformed-=normal*.32;else if(aInfo.x<3.5)transformed-=normal*.12;else transformed-=normal*.35;`);
     sh.fragmentShader=sh.fragmentShader
      .replace('#include <common>',`#include <common>
-uniform float uMus;uniform float uDbgA;varying float vV;varying vec4 vInfo;varying vec3 vFibB;varying vec3 vPB;varying vec3 vNB;varying float vLoad;varying float vSpec;
+uniform float uMus;uniform float uDbgA;varying vec3 vCen;varying vec4 vLab;uniform sampler2D uLabTex;uniform float uLabRows;uniform float uLabA[24];uniform float uLabW[24];uniform vec2 uLabF[24];varying float vV;varying vec4 vInfo;varying vec3 vFibB;varying vec3 vPB;varying vec3 vNB;varying float vLoad;varying float vSpec;
 ${GL}
 float anH2;vec3 anEm;float anRough;float anCoat;`)
      .replace('#include <map_fragment>',`#include <map_fragment>
@@ -5430,39 +5485,43 @@ float anH2;vec3 anEm;float anRough;float anCoat;`)
  vec3 col;anH2=.5;anEm=vec3(0.);anRough=.5;anCoat=.55;
  if(cls<.5||(cls>1.5&&cls<2.5)){
   /* fascicles: bundles ~6-8 mm across with fine fibres inside, slight waviness; fine detail fades with distance (no aliasing) */
-  float wav=anN(vPB*.22)*1.4;
-  float fwA=fwidth(cc*1.25),fwB=fwidth(cc*3.4);
-  float fa=mix(anN(vec3(cc*1.25+wav,al*.055,cc*.2)),.5,smoothstep(.45,1.,fwA));
-  float fbn=mix(anN(vec3(cc*3.4+wav*1.6,al*.13,al*.03+3.1)),.5,smoothstep(.3,.8,fwB));
-  float f=smoothstep(0.,1.,clamp(.5+(fa-.5)*2.3+(fbn-.5)*1.1,0.,1.));
-  float per=(1.-smoothstep(.0,.06,abs(fa-.5)))*.28*(1.-smoothstep(.25,.8,fwA));
-  vec3 deep=vec3(.10,.011,.013),mid=vec3(.27,.032,.032),hi=vec3(.42,.075,.065);
+  float wav=anN(vPB*.3)*.45;
+  float dv=length(vViewPosition);float lodA=smoothstep(1.5,3.4,dv),lodB=smoothstep(.45,1.35,dv);
+  float fa=mix(anN(vec3(cc*1.5+wav,al*.06,cc*.2)),.5,lodA);
+  float fbn=mix(anN(vec3(cc*4.2+wav*1.6,al*.14,al*.03+3.1)),.5,lodB);
+  float f=smoothstep(0.,1.,clamp(.5+(fa-.5)*.9+(fbn-.5)*.7,0.,1.));
+  float per=(1.-smoothstep(.0,.06,abs(fa-.5)))*.28*(1.-lodA);
+  vec3 deep=vec3(.34,.095,.09),mid=vec3(.50,.17,.16),hi=vec3(.64,.30,.27);
   col=mix(deep,mid,smoothstep(.08,.62,f));col=mix(col,hi,smoothstep(.64,.98,f)*.55);
-  col=mix(col,vec3(.50,.27,.24),per*.45);
+  col=mix(col,vec3(.74,.46,.42),per*.15);
   float tO=1.-smoothstep(.015,.07,u);
   float tI=vInfo.w>.5?smoothstep(.87,.955,u):smoothstep(.95,.99,u);
   if(vSpec>.5){float ins=0.;for(int k=0;k<3;k++){float uk=.36+float(k)*.2;ins=max(ins,1.-smoothstep(.006,.018,abs(u-uk)));}tO=max(tO,ins);}
   float tend=clamp(max(tO*.85,tI),0.,1.);
-  vec3 tc=mix(vec3(.40,.38,.35),vec3(.62,.60,.56),fbn)*(.92+.16*fa);tc=mix(tc,vec3(.55,.58,.64),.15);
+  vec3 tc=mix(vec3(.70,.68,.64),vec3(.88,.86,.82),fbn)*(.94+.1*fa);
   /* tension: maroon -> vivid crimson -> red-orange; fibre structure stays visible */
-  float tone=.5+.85*f;
-  vec3 c1=vec3(.66,.032,.026)*tone,c2=vec3(.98,.20,.05)*(.6+.6*f);
-  vec3 heat=L<.62?mix(col,c1,smoothstep(.18,.62,L)):mix(c1,c2,smoothstep(.62,1.,L));
+  /* tension: pale pink -> vivid red -> deep crimson with a faint glow; fibre structure stays visible */
+  float tone=.55+.75*f;
+  vec3 c1=vec3(.70,.03,.035)*tone,c2=vec3(.46,.004,.018)*tone;
+  vec3 heat=mix(col,c1,smoothstep(.24,.66,L));heat=mix(heat,c2,smoothstep(.70,1.,L));
   col=mix(col,heat,step(.001,L)*(1.-tend));
-  anEm=heat*(1.-tend)*smoothstep(.55,1.,L)*.12;
+  anEm=c1*(1.-tend)*smoothstep(.55,1.,L)*.07;
   col=mix(col,tc,tend);
-  anH2=mix(f*.8+fbn*.2,fbn*.5+.25,tend);anRough=mix(.48,.32,tend);anCoat=mix(.55,.75,tend);
+  anH2=mix(f*.8+fbn*.2,fbn*.5+.25,tend);anRough=mix(.5,.24,tend);anCoat=mix(.28,.92,tend);
   if(cls>1.5)col*=.92;
  }else if(cls>3.5){
   /* intercostal layer: deep, dark, oblique fibres, no load */
   float fi=anN(vec3((vPB.x*.7+vPB.y*.7)*2.2,(vPB.y-vPB.x)*.12,vPB.z*.3));
-  col=mix(vec3(.07,.009,.011),vec3(.19,.024,.026),fi);anH2=fi*.6;anRough=.5;anCoat=.45;
+  col=mix(vec3(.10,.018,.02),vec3(.20,.04,.04),fi);anH2=fi*.6;anRough=.5;anCoat=.45;
  }else if(cls<1.5){
   float n1=anN(vPB*1.4),n2=anN(vPB*6.);
-  col=mix(vec3(.62,.54,.41),vec3(.78,.72,.58),n1*.7+n2*.3);anH2=n2*.4;anRough=.58;anCoat=.15;
+  col=mix(vec3(.70,.62,.48),vec3(.84,.78,.64),n1*.7+n2*.3);anH2=n2*.4;anRough=.58;anCoat=.15;
  }else{
-  float n2=anN(vec3(cc*4.,al*.15,1.));col=mix(vec3(.58,.58,.56),vec3(.80,.80,.78),n2);anH2=n2*.5;anRough=.32;anCoat=.75;
+  float n2=anN(vec3(cc*4.,al*.15,1.));col=mix(vec3(.70,.67,.63),vec3(.86,.84,.80),n2);anH2=n2*.5;anRough=.26;anCoat=.9;
  }
+ if(vLab.z>-.5){int li=int(vLab.z+.5);float s=vLab.x,t=vLab.y;vec2 F=uLabF[li];if(F.x>.5)s=1.-s;if(F.y>.5)t=1.-t;
+  if(s>0.&&s<1.&&t>0.&&t<1.){vec2 luv=vec2(.5+(s-.5)*uLabW[li],1.-(floor(vLab.w+.5)+t)/uLabRows);
+   float la=texture2D(uLabTex,luv).a*uLabA[li];col=mix(col,vec3(.018,.012,.012),la*.92);anEm*=1.-la;}}
  diffuseColor.rgb=col;
  if(uDbgA>.5&&uDbgA<1.5)diffuseColor.rgb=cls<.5?vec3(.6,.02,.02):cls<1.5?vec3(.8,.7,0.):cls<2.5?vec3(0.,.1,.8):cls<3.5?vec3(0.,.8,.1):vec3(.8,0.,.8);
  if(uDbgA>1.5&&uDbgA<2.5)diffuseColor.rgb=vec3(u,vInfo.w,0.);
@@ -5477,16 +5536,16 @@ roughnessFactor=anRough;`)
      .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
 {vec3 sx=dFdx(-vViewPosition),sy=dFdy(-vViewPosition);float hx=dFdx(anH2),hy=dFdy(anH2);
  vec3 r1=cross(sy,normal),r2=cross(normal,sx);float det=dot(sx,r1);
- vec3 grad=sign(det)*(hx*r1+hy*r2);normal=normalize(abs(det)*normal-grad*.0018);}`)
+ vec3 grad=sign(det)*(hx*r1+hy*r2);normal=normalize(abs(det)*normal-grad*.0006);}`)
      .replace('#include <lights_physical_fragment>',`#include <lights_physical_fragment>
 material.clearcoat=anCoat;`)
      .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
 totalEmissiveRadiance+=anEm;`);
   };
-  m.customProgramCacheKey=()=>'anat1';
+  m.customProgramCacheKey=()=>'anat2';
   return m;
 }
-return {build,NAME_FA,GROUP,DBG};
+return {build,update,NAME_FA,GROUP,DBG};
 })();
 
 /* ============================================================================
@@ -6120,12 +6179,12 @@ const fillBox=new THREE.RectAreaLight(0xd8e4ff,.9,1.8,1.2);fillBox.position.set(
 
 /* volumetric light cones */
 const coneTex=canvasTex(8,256,(g,w,h)=>{const gr=g.createLinearGradient(0,0,0,h);gr.addColorStop(0,'rgba(255,255,255,.9)');gr.addColorStop(.6,'rgba(255,255,255,.25)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,w,h);});
-function cone(from,to,r,color,op){const len=from.distanceTo(to);
+const CONES=[];function cone(from,to,r,color,op){const len=from.distanceTo(to);
   const mat=new THREE.ShaderMaterial({uniforms:{c:{value:new THREE.Color(color)},op:{value:op*1.6}},transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
     vertexShader:'varying vec3 vN;varying vec3 vV;varying vec2 vUv;void main(){vUv=uv;vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
     fragmentShader:'uniform vec3 c;uniform float op;varying vec3 vN;varying vec3 vV;varying vec2 vUv;void main(){float f=pow(abs(dot(normalize(vN),normalize(vV))),2.2);float h=pow(vUv.y,1.6);gl_FragColor=vec4(c,op*f*h);}'});
   const m=new THREE.Mesh(new THREE.CylinderGeometry(.06,r,len,48,1,true),mat);
-  m.position.copy(from).add(to).multiplyScalar(.5);m.quaternion.setFromUnitVectors(UNIT_Y,from.clone().sub(to).normalize());scene.add(m);return m;}
+  m.position.copy(from).add(to).multiplyScalar(.5);m.quaternion.setFromUnitVectors(UNIT_Y,from.clone().sub(to).normalize());scene.add(m);CONES.push(m);return m;}
 cone(key.position.clone(),V(.1,0,0),1.25,0xffd8a0,.07);
 cone(rim.position.clone(),V(.3,0,.2),1.3,0x7fe6c8,.06);
 [-3.25,-1.85,-.45,.95].forEach(z=>cone(V(RX1-.25,2.75,z),V(RX1-.1,.9,z),.5,0xffe2b0,.05));
@@ -6438,7 +6497,7 @@ const LEG_ROWS=['pec','deltA','triceps'];
 window.__bp={cur:()=>cur,applyProfile,setS:null,freeze:null,mus:v=>{hl=!!v;document.getElementById('hl').classList.toggle('on',hl);document.getElementById('musLeg').classList.toggle('on',hl);}};let camOverride=null;window.__bp.cam=(p,l)=>{camOverride=p?{p:V(...p),l:V(...l)}:null;};
 let forceS=null;window.__bp.setS=v=>{forceS=v;};
 /* standing pose — used only to render progress-screen figures (window.__bp.stand(true)) */
-let standOn=false,standHips=false;const BG0=scene.background.clone(),FOG0=scene.fog.density;
+let standOn=false,standHips=false,studioOn=false;const BG0=scene.background.clone(),FOG0=scene.fog.density;
 function poseStand(){
   const d=cur.dims,up=V(0,1,0),fw=V(0,0,1),lf=V(1,0,0);
   const P=V(0,d.ankleH+(d.thigh+d.shin)*.992,0);
@@ -6462,6 +6521,12 @@ function frame(now){
   if(cur.shells)cur.shells.forEach(m=>m.visible=musV<.5);
   if(hl&&!cur.anat&&cur.sk&&window.ANAT&&!cur.anatTried){cur.anatTried=1;try{cur.anat=AN.build(cur.sk,cur.pk,cur.anatFit,sculpt,SBU);}catch(e){console.error('anat',e);}}
   if(cur.anat)cur.anat.visible=musV>.002;
+  if(cur.anat&&cur.anat.visible&&AN.update)try{AN.update(cur.anat,cam,LD,LEG_ROWS.map(n=>SB.MI[n]),musV);}catch(e){}
+  /* anatomy studio: dark seamless backdrop, room hidden, neutral rim light (bench/bar stay) */
+  {const st=musV>.5&&!standOn;if(st!==studioOn){studioOn=st;[gym,dust,...CONES].forEach(g=>{if(st){g.userData.s0=g.visible;g.visible=false;}else g.visible=g.userData.s0!==false;});
+    scene.background=st?new THREE.Color(0x050506):BG0;scene.fog.density=st?0:FOG0;
+    if(st){rim.userData.c0=rim.color.clone();rim.userData.i0=rim.intensity;amb.userData.i0=amb.intensity;rim.color.set(0xdfe6ff);rim.intensity*=.8;amb.intensity=0;topBox.userData.i0=topBox.intensity;topBox.intensity*=.55;}
+    else{rim.color.copy(rim.userData.c0);rim.intensity=rim.userData.i0;amb.intensity=amb.userData.i0;topBox.intensity=topBox.userData.i0;}}}
   if(hl&&now-(window.__legT||0)>120){window.__legT=now;LEG_ROWS.forEach(n=>{const v=Math.round(LD[SB.MI[n]]*100);const el=document.getElementById('ml_'+n);if(el){el.querySelector('i').style.width=v+'%';el.querySelector('b').textContent=fa(v)+'٪';}});}
   if(f.cyc!==lastCycle){if(lastCycle>=0)rep=rep%prof.repN+1;lastCycle=f.cyc;document.getElementById('rep').textContent=fa(rep);}
   document.querySelector('#phase b').textContent=f.ph;
@@ -6478,11 +6543,11 @@ function frame(now){
   cinT+=((auto?1:0)-cinT)*(1-Math.exp(-dt*1.4));if(cinT<.0005)cinT=0;
   if(auto&&!drag)camYaw+=dt*.085;
   const ct=now*.001,bob=Math.sin(ct*.35)*.16*cinT;
-  const rr=camR*(1-.2*cinT)+Math.sin(ct*.21)*.16*cinT;
-  cam.position.set(.05+Math.sin(camYaw)*rr,camH+bob-.12*cinT,Math.cos(camYaw)*rr);
+  const rr=(camR*(1-.2*cinT)+Math.sin(ct*.21)*.16*cinT)*(1-.3*musV);/* anatomy: closer studio framing */
+  cam.position.set(.05+Math.sin(camYaw)*rr,camH+bob-.12*cinT-.1*musV,Math.cos(camYaw)*rr);
   focP.set(o.bar.x*.55+.03,(o.bar.y+BENCH_TOP+.2)*.5,0);
   if(cinT>0){lookS.lerp(V(lerp(.15,focP.x,cinT*.85),lerp(.82,focP.y,cinT*.85),lerp(-.2,focP.z,cinT*.85)),1-Math.exp(-dt*3));}else lookS.set(.15,.82,-.2);
-  cam.lookAt(lookS);
+  cam.lookAt(musV>.002?lookS.clone().lerp(V(.12,.64,0),musV*.8):lookS);
   const fov=lerp(34,26,cinT);if(Math.abs(cam.fov-fov)>1e-3){cam.fov=fov;cam.updateProjectionMatrix();}
   if(camOverride){cam.position.copy(camOverride.p);cam.lookAt(camOverride.l);}
   rx.setDof(cinT*(camOverride?0:1),cam.position.distanceTo(focP));
