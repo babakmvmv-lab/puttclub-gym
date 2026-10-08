@@ -3,7 +3,7 @@
    Auth: Supabase (same accounts as the academy panel — password changes / new users apply automatically).
    Data: dedicated database (schema «gym») through the single server gateway rpc/gym_api; device copy + offline queue.
    Access: «اشتراک‌ها ← ماتریس دسترسی ← باشگاه پات کلاب» per plan, enforced on the server and mirrored in the UI. */
-const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.6.1'};
+const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.7.0'};
 /*GEO*/
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const fa=v=>String(v).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
@@ -317,8 +317,7 @@ function vTrain(){
      ${cS?`<button class="btn-gold" style="width:100%;margin-top:12px" data-act="session" data-d="${sel}">${logged?'مشاهده و جلسهٔ دوباره':'شروع جلسه'}</button>`:''}`
    :`<div class="card rest-day">${IC.moon}<b>روز ریکاوری</b><p>بدن در استراحت قوی‌تر می‌شود. پیشنهاد: ۲۰ دقیقه پیاده‌روی سبک و تمرین‌های تحرک ستون فقرات سینه‌ای و لگن برای چرخش بهتر سوئینگ.</p></div>`}
   </div>
-  ${cP?`<div class="sec"><h3>کتابخانهٔ حرکات</h3><div class="card"><div class="mc" style="margin:0">فقط حرکاتی که مربی در برنامه‌ات قرار می‌دهد اینجا فعال می‌شوند.</div>
-   <div class="soon">${['سینه','پشت','پا','شانه','مرکز بدن','چرخش گلف'].map(c=>`<i>${IC.lock}${c}</i>`).join('')}</div></div></div>`:''}`;}
+  ${vLibrary()}`;}
 
 /* ---------- tab: progress («پیشرفت») ---------- */
 function vProgress(){
@@ -451,13 +450,13 @@ function openSession(di){
 function closePush(){$('#push').classList.remove('on');$('#tabbar').classList.remove('off');clearInterval(clockT);stopRest();render();}
 function renderSession(){
   const A=S.data.active;if(!A)return;const P=plan(),d=P.days[A.day],ex=EX[A.ex],k=pk(),prev=lastFor(A.day,A.ex);
-  const plate=(kg)=>{const side=(kg-P.bar)/2;return side>0?`هر طرف ${nf1(side)} کیلو + هالتر ${nf(P.bar)} کیلویی`:`فقط هالتر ${nf(P.bar)} کیلویی`;};
+  const plate=(kg)=>loadInfo(A.ex,kg).txt,LQ=eqKey(A.ex);
   $('#push').innerHTML=`<div class="bar" id="pbar"><button class="bk" data-act="back">${IC.chevR}<span>بازگشت</span></button><div class="clock" id="clock">${hhmmss((Date.now()-Date.parse(A.start))/1000)}</div></div>
   <div class="body" id="pbody">
    <div class="sx-hero"><img src="${AU(`assets/hero_${k}.webp`)}" alt=""><div class="gr"></div>${can('gym.player.form')?`<button class="chip p3" data-act="player">${IC.cube} نمایش سه‌بعدی فرم صحیح</button>`:''}</div>
    <div class="sx-t"><div class="k">روز ${esc(d.t)} · ${WDL[A.day]}</div><h2>${ex.name}</h2><div class="en">${ex.en} · ${ex.eq}</div>
     <div class="tags">${ex.mus.map((m,i)=>`<i class="${i?'':'g'}">${m[0]}</i>`).join('')}</div>
-    <div class="rx num"><div><small>ست × تکرار</small><b>${nf(d.sets)} × ${nf(d.reps)}</b></div><div><small>بار</small><b>${nf1(d.kg)} kg</b></div><div><small>سختی هدف</small><b>RPE ${d.rpe}</b></div><div><small>تمپو</small><b>${d.tempo}</b></div><div><small>استراحت</small><b>${mmss(d.rest)}</b></div><div><small>هالتر</small><b>${nf(P.bar)} kg</b></div></div></div>
+    <div class="rx num"><div><small>ست × تکرار</small><b>${nf(d.sets)} × ${nf(d.reps)}</b></div><div><small>بار</small><b>${nf1(d.kg)} kg</b></div><div><small>سختی هدف</small><b>RPE ${d.rpe}</b></div><div><small>تمپو</small><b>${d.tempo}</b></div><div><small>استراحت</small><b>${mmss(d.rest)}</b></div><div><small>${LQ==='db'?'تجهیزات':LQ==='smith'?'میلهٔ اسمیت':'هالتر'}</small><b>${LQ==='db'?'دو دمبل':nf(LQ==='smith'?SMITH_BAR:P.bar)+' kg'}</b></div></div></div>
    ${P.guard?`<div class="guard">${IC.shield}<div><b>گاردریل نوجوان فعال است.</b> شدت حداکثر ۶۰٪، هیچ ستی تا ناتوانی نمی‌رود و حضور مربی یا کمک‌دهنده الزامی است.</div></div>`:''}
    <div class="sets"><div class="hd"><span>ست</span><span>قبلی</span><span>کیلوگرم</span><span>تکرار</span><span>✓</span></div>
     ${A.sets.map((s,i)=>{const p=prev&&prev.sets[i];return `<div class="sr ${s.done?'ok':''}" data-i="${i}"><span class="n">${nf(i+1)}</span><span class="pv">${p?fa(p.kg)+'×'+fa(p.reps):'—'}</span><input inputmode="decimal" data-f="kg" value="${fa(s.kg)}" aria-label="کیلوگرم ست ${fa(i+1)}"><input inputmode="numeric" data-f="reps" value="${fa(s.reps)}" aria-label="تکرار ست ${fa(i+1)}"><button class="ck" data-act="check" data-i="${i}" aria-label="ثبت ست">${IC.check}</button></div>`;}).join('')}
@@ -552,13 +551,14 @@ async function pkRecheck(){if(PK.busy||document.getElementById('upd')||Date.now(
   try{const R=await pkRemote();PK.checked=Date.now();const need=Object.keys(R.files).filter(p=>PK.meta[p]!==R.files[p][0]);
     if(R.code!==PKG.code||need.length){if(!need.length){pkReload(R.code);return;}await pkGate(R,need,false);if(document.getElementById('player')?.classList.contains('on'))closePlayer();render&&S.prof&&S.sess&&render();}}catch(e){}finally{PK.busy=false;}}
 const PLAYER_BYTES=14.9e6;let playerWarm=false;
-async function openPlayer(){
+async function openPlayer(o){
+  o=o||{};const X=o.ex&&EX[o.ex]?o.ex:'bench',XN=EX[X].name;
   if(!can('gym.player.form')){toast('نمایش سه‌بعدی در اشتراک شما فعال نیست');return;}
   const pl=$('#player'),k=pk();
   pl.innerHTML=`<div class="ld" id="pld"><img class="bg" src="${AU(`assets/hero_${k}.webp`)}" alt=""><div class="c"><svg width="74" height="74" viewBox="0 0 74 74"><circle cx="37" cy="37" r="32" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="5"/><circle id="pring" cx="37" cy="37" r="32" fill="none" stroke="var(--gold)" stroke-width="5" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201" transform="rotate(-90 37 37)" style="transition:stroke-dashoffset .3s"/><image href="${AU(`assets/emblem.webp`)}" x="21" y="21" width="32" height="32"/></svg><b>در حال ورود به PuttClub Gym</b><span id="ptxt">آماده‌سازی صحنهٔ سه‌بعدی…</span></div></div>
-   <div class="top"><button class="gbtn" data-act="closeplayer" aria-label="بستن">${IC.x}</button><div class="tt">پرس سینه با هالتر<small>${CHAR[k]}</small></div><span style="width:40px"></span></div>`;
+   <div class="top"><button class="gbtn" data-act="closeplayer" aria-label="بستن">${IC.x}</button><div class="tt">${XN}<small>${CHAR[k]}${o.kg?` · ${nf1(o.kg)} کیلو`:''}</small></div><span style="width:40px"></span></div>`;
   pl.classList.add('on');
-  const qs='embed=1&p='+k+(can('gym.player.anatomy')?'':'&mus=0');let src='play/bench-press.html?'+qs;
+  const qs='embed=1&p='+k+(can('gym.player.anatomy')?'':'&mus=0')+'&ex='+X+(o.kg?'&kg='+o.kg:'')+(o.reps?'&reps='+o.reps:'')+'&bar='+(plan().bar||20);let src='play/bench-press.html?'+qs;
   const PP='play/bench-press.html';if(PK.meta[PP]&&PKG.files[PP]&&PK.meta[PP]===PKG.files[PP][0]){try{const v=await pkGet(PP);if(v){if(PK.purl)URL.revokeObjectURL(PK.purl);PK.purl=URL.createObjectURL(new Blob([v],{type:mimeOf(PP)}));src=PK.purl+'#'+qs;playerWarm=true;}}catch(e){}}
   if(!playerWarm){try{const r=await fetch(AU('play/bench-press.html'),{cache:'default'});if(r.body&&r.body.getReader){const rd=r.body.getReader();let got=0;for(;;){const {done,value}=await rd.read();if(done)break;got+=value.length;const f=Math.min(.99,got/PLAYER_BYTES);const pr=$('#pring');if(!pr)return;pr.style.strokeDashoffset=201*(1-f);$('#ptxt').textContent=fa(Math.round(f*100))+'٪ · بار اول کمی طول می‌کشد';}}else await r.blob();playerWarm=true;}catch(e){}}
   if(!pl.classList.contains('on'))return;
@@ -582,7 +582,7 @@ function measForm(){const last=S.data.meas[S.data.meas.length-1]||{};
 const ACT={
  tab:a=>go(a.dataset.t),day:a=>{S.day=+a.dataset.d;render('train');},seg:a=>{S.seg=a.dataset.s;render('progress');},
  session:(a,e)=>{if(e.target.closest('[data-act="player"]'))return;openSession(+a.dataset.d);},
- player:(a,e)=>{e.stopPropagation();openPlayer();},closeplayer:closePlayer,back:closePush,
+ player:(a,e)=>{e.stopPropagation();openPlayer(sessCtx());},closeplayer:closePlayer,back:closePush,
  check:a=>{const A=S.data.active,i=+a.dataset.i,s=A.sets[i];const r=a.closest('.sr');$$('input',r).forEach(inp=>{const v=num(inp.value);s[inp.dataset.f]=v==null?0:v;});
    s.done=!s.done;saveData();r.classList.toggle('ok',s.done);haptic(15);if(s.done&&can('gym.train.timer')){startRest(plan().days[A.day].rest);}},
  addset:()=>{const A=S.data.active,l=A.sets[A.sets.length-1]||{kg:plan().days[A.day].kg,reps:plan().days[A.day].reps};A.sets.push({kg:l.kg,reps:l.reps,done:false});saveData();const y=$('#pbody').scrollTop;renderSession();$('#pbody').scrollTop=y;},

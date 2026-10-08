@@ -403,3 +403,53 @@ svg{display:block}
 .mchip.on{opacity:1}
 .mchip .sp{width:12px;height:12px}
 .mp-view .mp-cap,.mp-view .mp-st,.mp-view .mp-vb,.mp-view .mp-ld{z-index:2}
+
+/* ---------- exercise library (v1.7) ---------- */
+.lb-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lb-cat{position:relative;text-align:start;background:var(--card);border:0;border-radius:22px;padding:14px 14px 13px;color:var(--t1);font:inherit;overflow:hidden;min-height:118px;display:flex;flex-direction:column;align-items:flex-start}
+.lb-cat .gl{width:40px;height:40px;color:var(--t3);margin-bottom:8px}
+.lb-cat .gl svg{width:100%;height:100%}
+.lb-cat b{font-size:16px;font-weight:850}
+.lb-cat small{font-size:11px;color:var(--t3);letter-spacing:.2px;margin-top:1px}
+.lb-cat i{font-style:normal;font-size:11px;font-weight:700;color:var(--t3);margin-top:auto;padding-top:8px}
+.lb-cat.on{background:linear-gradient(150deg,#1d2a1f 0%,#151516 62%);box-shadow:inset 0 0 0 1px rgba(233,196,106,.22)}
+.lb-cat.on .gl{color:var(--gold)}
+.lb-cat.on i{color:var(--gold2)}
+.lb-cat:active{transform:scale(.97)}
+.lb-hd{display:flex;gap:14px;align-items:center;padding:6px 20px 4px}
+.lb-hd .gl{width:58px;height:58px;flex:none;color:var(--gold);background:rgba(233,196,106,.08);border-radius:18px;padding:8px}
+.lb-hd .gl svg{width:100%;height:100%}
+.lb-hd .k{font-size:12.5px;color:var(--gold);font-weight:700}
+.lb-hd h2{margin:2px 0 0;font-size:27px;font-weight:850}
+.lb-hd h2 small{font-size:14px;color:var(--t2);font-weight:600}
+.lb-hd .mc{margin:2px 0 0}
+.lb-g{font-size:12px;font-weight:800;color:var(--gold);margin:12px 6px 7px;letter-spacing:.2px}
+.lb-list{padding:4px 0}
+.lb-r{display:flex;align-items:center;gap:12px;width:100%;background:none;border:0;color:var(--t1);font:inherit;text-align:start;padding:10px 14px;position:relative}
+.lb-r+.lb-r::before{content:"";position:absolute;top:0;inset-inline:66px 0;height:1px;background:var(--sep)}
+.lb-r .ic{width:40px;height:40px;flex:none;border-radius:12px;background:rgba(233,196,106,.09);color:var(--gold);display:grid;place-items:center}
+.lb-r .ic svg{width:28px;height:28px}
+.lb-r .tx{flex:1;min-width:0}
+.lb-r .tx b{display:block;font-size:15px;font-weight:750}
+.lb-r .tx small{display:block;font-size:11.5px;color:var(--t2);margin-top:2px;direction:ltr;text-align:right}
+.lb-r i{font-style:normal;font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:99px;flex:none}
+.lb-r .b3{background:rgba(233,196,106,.14);color:var(--gold2)}
+.lb-r .pl{background:rgba(116,222,69,.13);color:#b6f08f}
+.lb-r .sn{background:rgba(255,255,255,.06);color:var(--t3)}
+.lb-r .chev{color:var(--t3);display:flex}
+.lb-r.off .ic{background:rgba(255,255,255,.04);color:var(--t3)}
+.lb-r.off .tx b{color:var(--t2);font-weight:600}
+.lb-r:not(.off):active{background:rgba(255,255,255,.04)}
+.lx .k{font-size:12.5px;color:var(--gold);font-weight:700;margin-top:8px}
+.lx h2{margin:2px 0 0;font-size:25px;font-weight:850;line-height:1.35}
+.lx .en{font-size:13px;color:var(--t2);direction:ltr;text-align:right}
+.lx h3{font-size:15px;margin:20px 0 6px}
+.lx ol{margin:0;padding-inline-start:20px;color:var(--t1);font-size:14px;line-height:1.9}
+.lx .golfp{margin:0;font-size:14px;line-height:1.9;color:var(--t2)}
+.lx-w{display:flex;align-items:center;gap:12px;background:var(--card2);border-radius:20px;padding:12px;margin:16px 0 12px}
+.lx-w .sq{width:46px;height:46px;border-radius:14px;border:0;background:var(--card3);color:var(--gold);font-size:24px;display:grid;place-items:center;flex:none}
+.lx-w .v{flex:1;text-align:center}
+.lx-w .v b{display:block;font-size:28px;font-weight:850}
+.lx-w .v b small{font-size:13px;color:var(--t2)}
+.lx-w .v>small{display:block;font-size:12px;color:var(--gold2);margin-top:2px}
+.lx{text-align:start}

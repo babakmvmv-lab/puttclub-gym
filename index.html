@@ -420,6 +420,56 @@ svg{display:block}
 .mchip.on{opacity:1}
 .mchip .sp{width:12px;height:12px}
 .mp-view .mp-cap,.mp-view .mp-st,.mp-view .mp-vb,.mp-view .mp-ld{z-index:2}
+
+/* ---------- exercise library (v1.7) ---------- */
+.lb-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lb-cat{position:relative;text-align:start;background:var(--card);border:0;border-radius:22px;padding:14px 14px 13px;color:var(--t1);font:inherit;overflow:hidden;min-height:118px;display:flex;flex-direction:column;align-items:flex-start}
+.lb-cat .gl{width:40px;height:40px;color:var(--t3);margin-bottom:8px}
+.lb-cat .gl svg{width:100%;height:100%}
+.lb-cat b{font-size:16px;font-weight:850}
+.lb-cat small{font-size:11px;color:var(--t3);letter-spacing:.2px;margin-top:1px}
+.lb-cat i{font-style:normal;font-size:11px;font-weight:700;color:var(--t3);margin-top:auto;padding-top:8px}
+.lb-cat.on{background:linear-gradient(150deg,#1d2a1f 0%,#151516 62%);box-shadow:inset 0 0 0 1px rgba(233,196,106,.22)}
+.lb-cat.on .gl{color:var(--gold)}
+.lb-cat.on i{color:var(--gold2)}
+.lb-cat:active{transform:scale(.97)}
+.lb-hd{display:flex;gap:14px;align-items:center;padding:6px 20px 4px}
+.lb-hd .gl{width:58px;height:58px;flex:none;color:var(--gold);background:rgba(233,196,106,.08);border-radius:18px;padding:8px}
+.lb-hd .gl svg{width:100%;height:100%}
+.lb-hd .k{font-size:12.5px;color:var(--gold);font-weight:700}
+.lb-hd h2{margin:2px 0 0;font-size:27px;font-weight:850}
+.lb-hd h2 small{font-size:14px;color:var(--t2);font-weight:600}
+.lb-hd .mc{margin:2px 0 0}
+.lb-g{font-size:12px;font-weight:800;color:var(--gold);margin:12px 6px 7px;letter-spacing:.2px}
+.lb-list{padding:4px 0}
+.lb-r{display:flex;align-items:center;gap:12px;width:100%;background:none;border:0;color:var(--t1);font:inherit;text-align:start;padding:10px 14px;position:relative}
+.lb-r+.lb-r::before{content:"";position:absolute;top:0;inset-inline:66px 0;height:1px;background:var(--sep)}
+.lb-r .ic{width:40px;height:40px;flex:none;border-radius:12px;background:rgba(233,196,106,.09);color:var(--gold);display:grid;place-items:center}
+.lb-r .ic svg{width:28px;height:28px}
+.lb-r .tx{flex:1;min-width:0}
+.lb-r .tx b{display:block;font-size:15px;font-weight:750}
+.lb-r .tx small{display:block;font-size:11.5px;color:var(--t2);margin-top:2px;direction:ltr;text-align:right}
+.lb-r i{font-style:normal;font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:99px;flex:none}
+.lb-r .b3{background:rgba(233,196,106,.14);color:var(--gold2)}
+.lb-r .pl{background:rgba(116,222,69,.13);color:#b6f08f}
+.lb-r .sn{background:rgba(255,255,255,.06);color:var(--t3)}
+.lb-r .chev{color:var(--t3);display:flex}
+.lb-r.off .ic{background:rgba(255,255,255,.04);color:var(--t3)}
+.lb-r.off .tx b{color:var(--t2);font-weight:600}
+.lb-r:not(.off):active{background:rgba(255,255,255,.04)}
+.lx .k{font-size:12.5px;color:var(--gold);font-weight:700;margin-top:8px}
+.lx h2{margin:2px 0 0;font-size:25px;font-weight:850;line-height:1.35}
+.lx .en{font-size:13px;color:var(--t2);direction:ltr;text-align:right}
+.lx h3{font-size:15px;margin:20px 0 6px}
+.lx ol{margin:0;padding-inline-start:20px;color:var(--t1);font-size:14px;line-height:1.9}
+.lx .golfp{margin:0;font-size:14px;line-height:1.9;color:var(--t2)}
+.lx-w{display:flex;align-items:center;gap:12px;background:var(--card2);border-radius:20px;padding:12px;margin:16px 0 12px}
+.lx-w .sq{width:46px;height:46px;border-radius:14px;border:0;background:var(--card3);color:var(--gold);font-size:24px;display:grid;place-items:center;flex:none}
+.lx-w .v{flex:1;text-align:center}
+.lx-w .v b{display:block;font-size:28px;font-weight:850}
+.lx-w .v b small{font-size:13px;color:var(--t2)}
+.lx-w .v>small{display:block;font-size:12px;color:var(--gold2);margin-top:2px}
+.lx{text-align:start}
 </style>
 </head>
 <body>
@@ -457,7 +507,7 @@ svg{display:block}
    Auth: Supabase (same accounts as the academy panel — password changes / new users apply automatically).
    Data: dedicated database (schema «gym») through the single server gateway rpc/gym_api; device copy + offline queue.
    Access: «اشتراک‌ها ← ماتریس دسترسی ← باشگاه پات کلاب» per plan, enforced on the server and mirrored in the UI. */
-const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.6.1'};
+const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.7.0'};
 const GEO={"m":{"c":[0.1715,0.8465],"top":0.1784,"neck":[0.2733,0.4562,0.5425],"chest":[0.3353,0.385,0.615],"waist":[0.4289,0.405,0.5938],"hip":[0.5043,0.3812,0.6162],"biceps":[0.3645,0.32,0.374],"forearm":[0.4396,0.305,0.3575],"thigh":[0.5538,0.505,0.625],"calf":[0.6879,0.5312,0.6075]},"f":{"c":[0.166,0.8438],"top":0.1729,"neck":[0.288,0.465,0.5337],"chest":[0.3397,0.41,0.59],"waist":[0.4155,0.43,0.5687],"hip":[0.4857,0.39,0.6088],"biceps":[0.3664,0.3475,0.4],"forearm":[0.4333,0.3225,0.3675],"thigh":[0.5393,0.505,0.6125],"calf":[0.6821,0.54,0.6075]},"g":{"c":[0.1924,0.8479],"top":0.1993,"neck":[0.2914,0.4637,0.535],"chest":[0.343,0.405,0.595],"waist":[0.4187,0.4188,0.5813],"hip":[0.4888,0.395,0.6025],"biceps":[0.368,0.355,0.4075],"forearm":[0.4373,0.33,0.3725],"thigh":[0.5424,0.5038,0.6062],"calf":[0.6869,0.535,0.6062]},"t":{"c":[0.1931,0.8465],"top":0.2,"neck":[0.2955,0.4662,0.5325],"chest":[0.3548,0.38,0.62],"waist":[0.4444,0.3937,0.605],"hip":[0.5165,0.3912,0.6075],"biceps":[0.3825,0.3325,0.4],"forearm":[0.4545,0.31,0.3663],"thigh":[0.564,0.5012,0.615],"calf":[0.6922,0.525,0.6112]}};
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const fa=v=>String(v).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
@@ -771,8 +821,7 @@ function vTrain(){
      ${cS?`<button class="btn-gold" style="width:100%;margin-top:12px" data-act="session" data-d="${sel}">${logged?'مشاهده و جلسهٔ دوباره':'شروع جلسه'}</button>`:''}`
    :`<div class="card rest-day">${IC.moon}<b>روز ریکاوری</b><p>بدن در استراحت قوی‌تر می‌شود. پیشنهاد: ۲۰ دقیقه پیاده‌روی سبک و تمرین‌های تحرک ستون فقرات سینه‌ای و لگن برای چرخش بهتر سوئینگ.</p></div>`}
   </div>
-  ${cP?`<div class="sec"><h3>کتابخانهٔ حرکات</h3><div class="card"><div class="mc" style="margin:0">فقط حرکاتی که مربی در برنامه‌ات قرار می‌دهد اینجا فعال می‌شوند.</div>
-   <div class="soon">${['سینه','پشت','پا','شانه','مرکز بدن','چرخش گلف'].map(c=>`<i>${IC.lock}${c}</i>`).join('')}</div></div></div>`:''}`;}
+  ${vLibrary()}`;}
 
 /* ---------- tab: progress («پیشرفت») ---------- */
 function vProgress(){
@@ -905,13 +954,13 @@ function openSession(di){
 function closePush(){$('#push').classList.remove('on');$('#tabbar').classList.remove('off');clearInterval(clockT);stopRest();render();}
 function renderSession(){
   const A=S.data.active;if(!A)return;const P=plan(),d=P.days[A.day],ex=EX[A.ex],k=pk(),prev=lastFor(A.day,A.ex);
-  const plate=(kg)=>{const side=(kg-P.bar)/2;return side>0?`هر طرف ${nf1(side)} کیلو + هالتر ${nf(P.bar)} کیلویی`:`فقط هالتر ${nf(P.bar)} کیلویی`;};
+  const plate=(kg)=>loadInfo(A.ex,kg).txt,LQ=eqKey(A.ex);
   $('#push').innerHTML=`<div class="bar" id="pbar"><button class="bk" data-act="back">${IC.chevR}<span>بازگشت</span></button><div class="clock" id="clock">${hhmmss((Date.now()-Date.parse(A.start))/1000)}</div></div>
   <div class="body" id="pbody">
    <div class="sx-hero"><img src="${AU(`assets/hero_${k}.webp`)}" alt=""><div class="gr"></div>${can('gym.player.form')?`<button class="chip p3" data-act="player">${IC.cube} نمایش سه‌بعدی فرم صحیح</button>`:''}</div>
    <div class="sx-t"><div class="k">روز ${esc(d.t)} · ${WDL[A.day]}</div><h2>${ex.name}</h2><div class="en">${ex.en} · ${ex.eq}</div>
     <div class="tags">${ex.mus.map((m,i)=>`<i class="${i?'':'g'}">${m[0]}</i>`).join('')}</div>
-    <div class="rx num"><div><small>ست × تکرار</small><b>${nf(d.sets)} × ${nf(d.reps)}</b></div><div><small>بار</small><b>${nf1(d.kg)} kg</b></div><div><small>سختی هدف</small><b>RPE ${d.rpe}</b></div><div><small>تمپو</small><b>${d.tempo}</b></div><div><small>استراحت</small><b>${mmss(d.rest)}</b></div><div><small>هالتر</small><b>${nf(P.bar)} kg</b></div></div></div>
+    <div class="rx num"><div><small>ست × تکرار</small><b>${nf(d.sets)} × ${nf(d.reps)}</b></div><div><small>بار</small><b>${nf1(d.kg)} kg</b></div><div><small>سختی هدف</small><b>RPE ${d.rpe}</b></div><div><small>تمپو</small><b>${d.tempo}</b></div><div><small>استراحت</small><b>${mmss(d.rest)}</b></div><div><small>${LQ==='db'?'تجهیزات':LQ==='smith'?'میلهٔ اسمیت':'هالتر'}</small><b>${LQ==='db'?'دو دمبل':nf(LQ==='smith'?SMITH_BAR:P.bar)+' kg'}</b></div></div></div>
    ${P.guard?`<div class="guard">${IC.shield}<div><b>گاردریل نوجوان فعال است.</b> شدت حداکثر ۶۰٪، هیچ ستی تا ناتوانی نمی‌رود و حضور مربی یا کمک‌دهنده الزامی است.</div></div>`:''}
    <div class="sets"><div class="hd"><span>ست</span><span>قبلی</span><span>کیلوگرم</span><span>تکرار</span><span>✓</span></div>
     ${A.sets.map((s,i)=>{const p=prev&&prev.sets[i];return `<div class="sr ${s.done?'ok':''}" data-i="${i}"><span class="n">${nf(i+1)}</span><span class="pv">${p?fa(p.kg)+'×'+fa(p.reps):'—'}</span><input inputmode="decimal" data-f="kg" value="${fa(s.kg)}" aria-label="کیلوگرم ست ${fa(i+1)}"><input inputmode="numeric" data-f="reps" value="${fa(s.reps)}" aria-label="تکرار ست ${fa(i+1)}"><button class="ck" data-act="check" data-i="${i}" aria-label="ثبت ست">${IC.check}</button></div>`;}).join('')}
@@ -951,7 +1000,7 @@ function finish(){
 /* ---------- offline package: all heavy files (3D player + images) live in IndexedDB.
    Downloaded once via the «بروزرسانی» screen; later only changed files (by hash) are fetched.
    version.json is always read fresh (no cache), so a new release is detected immediately. ---------- */
-const PKG={code:'4c0760bbc7',files:{"assets/char_f.webp":["326645c006",22984],"assets/char_g.webp":["805bca5502",17514],"assets/char_m.webp":["4170c929e5",22554],"assets/char_t.webp":["4d49a2fa85",17514],"assets/emblem.webp":["29e71430d3",21908],"assets/fig_f.webp":["77586a7673",43538],"assets/fig_g.webp":["530ce1b1e3",44704],"assets/fig_m.webp":["92681f689c",47966],"assets/fig_t.webp":["789adf5f6a",40898],"assets/hero_f.webp":["973480eaff",59702],"assets/hero_g.webp":["9225372574",57616],"assets/hero_m.webp":["d1c71f0c02",65422],"assets/hero_t.webp":["77e9c813c8",56022],"assets/login_bg.webp":["2d8bbd2610",64828],"assets/login_s.webp":["b3f3090d37",16034],"assets/logo_full.webp":["4c4c817c1d",79318],"assets/mus_f.webp":["815df16c5b",68116],"assets/mus_g.webp":["ba58895d1c",66726],"assets/mus_m.webp":["189a5cc465",75928],"assets/mus_t.webp":["ca3d310694",74536],"play/bench-press.html":["56204fdcde",14876725]}};   // what THIS build expects: {path:[hash,bytes]}
+const PKG={code:'8899ba364b',files:{"assets/char_f.webp":["326645c006",22984],"assets/char_g.webp":["805bca5502",17514],"assets/char_m.webp":["4170c929e5",22554],"assets/char_t.webp":["4d49a2fa85",17514],"assets/emblem.webp":["29e71430d3",21908],"assets/fig_f.webp":["77586a7673",43538],"assets/fig_g.webp":["530ce1b1e3",44704],"assets/fig_m.webp":["92681f689c",47966],"assets/fig_t.webp":["789adf5f6a",40898],"assets/hero_f.webp":["973480eaff",59702],"assets/hero_g.webp":["9225372574",57616],"assets/hero_m.webp":["d1c71f0c02",65422],"assets/hero_t.webp":["77e9c813c8",56022],"assets/login_bg.webp":["2d8bbd2610",64828],"assets/login_s.webp":["b3f3090d37",16034],"assets/logo_full.webp":["4c4c817c1d",79318],"assets/mus_f.webp":["815df16c5b",68116],"assets/mus_g.webp":["ba58895d1c",66726],"assets/mus_m.webp":["189a5cc465",75928],"assets/mus_t.webp":["ca3d310694",74536],"play/bench-press.html":["34a690ab54",14895291]}};   // what THIS build expects: {path:[hash,bytes]}
 const PK={db:null,urls:{},meta:LS.get('pcgym.pkg')||{},checked:0,busy:false};
 function pkDB(){return PK.db||(PK.db=new Promise((ok,no)=>{const r=indexedDB.open('pcgym-pkg',1);r.onupgradeneeded=()=>r.result.createObjectStore('f');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);}));}
 async function pkTx(mode,fn){const db=await pkDB();return new Promise((ok,no)=>{const t=db.transaction('f',mode),st=t.objectStore('f');const r=fn(st);t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>no(t.error);t.onabort=()=>no(t.error);});}
@@ -1006,13 +1055,14 @@ async function pkRecheck(){if(PK.busy||document.getElementById('upd')||Date.now(
   try{const R=await pkRemote();PK.checked=Date.now();const need=Object.keys(R.files).filter(p=>PK.meta[p]!==R.files[p][0]);
     if(R.code!==PKG.code||need.length){if(!need.length){pkReload(R.code);return;}await pkGate(R,need,false);if(document.getElementById('player')?.classList.contains('on'))closePlayer();render&&S.prof&&S.sess&&render();}}catch(e){}finally{PK.busy=false;}}
 const PLAYER_BYTES=14.9e6;let playerWarm=false;
-async function openPlayer(){
+async function openPlayer(o){
+  o=o||{};const X=o.ex&&EX[o.ex]?o.ex:'bench',XN=EX[X].name;
   if(!can('gym.player.form')){toast('نمایش سه‌بعدی در اشتراک شما فعال نیست');return;}
   const pl=$('#player'),k=pk();
   pl.innerHTML=`<div class="ld" id="pld"><img class="bg" src="${AU(`assets/hero_${k}.webp`)}" alt=""><div class="c"><svg width="74" height="74" viewBox="0 0 74 74"><circle cx="37" cy="37" r="32" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="5"/><circle id="pring" cx="37" cy="37" r="32" fill="none" stroke="var(--gold)" stroke-width="5" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201" transform="rotate(-90 37 37)" style="transition:stroke-dashoffset .3s"/><image href="${AU(`assets/emblem.webp`)}" x="21" y="21" width="32" height="32"/></svg><b>در حال ورود به PuttClub Gym</b><span id="ptxt">آماده‌سازی صحنهٔ سه‌بعدی…</span></div></div>
-   <div class="top"><button class="gbtn" data-act="closeplayer" aria-label="بستن">${IC.x}</button><div class="tt">پرس سینه با هالتر<small>${CHAR[k]}</small></div><span style="width:40px"></span></div>`;
+   <div class="top"><button class="gbtn" data-act="closeplayer" aria-label="بستن">${IC.x}</button><div class="tt">${XN}<small>${CHAR[k]}${o.kg?` · ${nf1(o.kg)} کیلو`:''}</small></div><span style="width:40px"></span></div>`;
   pl.classList.add('on');
-  const qs='embed=1&p='+k+(can('gym.player.anatomy')?'':'&mus=0');let src='play/bench-press.html?'+qs;
+  const qs='embed=1&p='+k+(can('gym.player.anatomy')?'':'&mus=0')+'&ex='+X+(o.kg?'&kg='+o.kg:'')+(o.reps?'&reps='+o.reps:'')+'&bar='+(plan().bar||20);let src='play/bench-press.html?'+qs;
   const PP='play/bench-press.html';if(PK.meta[PP]&&PKG.files[PP]&&PK.meta[PP]===PKG.files[PP][0]){try{const v=await pkGet(PP);if(v){if(PK.purl)URL.revokeObjectURL(PK.purl);PK.purl=URL.createObjectURL(new Blob([v],{type:mimeOf(PP)}));src=PK.purl+'#'+qs;playerWarm=true;}}catch(e){}}
   if(!playerWarm){try{const r=await fetch(AU('play/bench-press.html'),{cache:'default'});if(r.body&&r.body.getReader){const rd=r.body.getReader();let got=0;for(;;){const {done,value}=await rd.read();if(done)break;got+=value.length;const f=Math.min(.99,got/PLAYER_BYTES);const pr=$('#pring');if(!pr)return;pr.style.strokeDashoffset=201*(1-f);$('#ptxt').textContent=fa(Math.round(f*100))+'٪ · بار اول کمی طول می‌کشد';}}else await r.blob();playerWarm=true;}catch(e){}}
   if(!pl.classList.contains('on'))return;
@@ -1036,7 +1086,7 @@ function measForm(){const last=S.data.meas[S.data.meas.length-1]||{};
 const ACT={
  tab:a=>go(a.dataset.t),day:a=>{S.day=+a.dataset.d;render('train');},seg:a=>{S.seg=a.dataset.s;render('progress');},
  session:(a,e)=>{if(e.target.closest('[data-act="player"]'))return;openSession(+a.dataset.d);},
- player:(a,e)=>{e.stopPropagation();openPlayer();},closeplayer:closePlayer,back:closePush,
+ player:(a,e)=>{e.stopPropagation();openPlayer(sessCtx());},closeplayer:closePlayer,back:closePush,
  check:a=>{const A=S.data.active,i=+a.dataset.i,s=A.sets[i];const r=a.closest('.sr');$$('input',r).forEach(inp=>{const v=num(inp.value);s[inp.dataset.f]=v==null?0:v;});
    s.done=!s.done;saveData();r.classList.toggle('ok',s.done);haptic(15);if(s.done&&can('gym.train.timer')){startRest(plan().days[A.day].rest);}},
  addset:()=>{const A=S.data.active,l=A.sets[A.sets.length-1]||{kg:plan().days[A.day].kg,reps:plan().days[A.day].reps};A.sets.push({kg:l.kg,reps:l.reps,done:false});saveData();const y=$('#pbody').scrollTop;renderSession();$('#pbody').scrollTop=y;},
@@ -1350,6 +1400,105 @@ Object.assign(ACT,{
   mpt:a=>{MP.tier=+a.dataset.t;$$('.mp-tabs button').forEach(b=>b.classList.toggle('on',b===a));mpRender();$('#mpbody').scrollTop=0;},
   mphow:a=>{const e=a.closest('.mf');e.classList.toggle('open');mpFocus(a.dataset.k);},
   mpv:a=>{if(MP.frame&&MP.ready)MP.frame.send({t:'view',v:a.dataset.v});}
+});
+
+/* generated by tools/exercises.py — do not edit by hand */
+const LIBX={"bench":{"name":"پرس سینه هالتر","en":"Barbell Bench Press","eq":"هالتر · نیمکت تخت","mus":[["سینه‌ای بزرگ","chest",1],["دلتوئید قدامی","delt",0.5],["سه‌سر بازو","tri",0.5]],"stab":"کتف، مرکز بدن، پاها","cues":["پنج نقطهٔ تماس: سر، کتف‌ها و باسن روی نیمکت؛ دو پا محکم روی زمین","کتف‌ها جمع و پایین، قفسهٔ سینه باز","آرنج‌ها حدود ۴۵ تا ۷۰ درجه نسبت به تنه","میله تا خط نوک سینه و برگشت در مسیر J به بالای شانه‌ها","مچ صاف بالای آرنج؛ دم هنگام پایین آمدن، بازدم هنگام فشار"],"golf":"قدرت فشاری بالاتنه و ثبات کتف، انتقال نیرو در داون‌سوئینگ و کنترل چوب در لحظهٔ ضربه را بهتر می‌کند. روز «سرعت میله» توان انفجاری را برای سرعت سر چوب می‌سازد.","cat":"chest","kind":"free","grp":"هالتر","model":"play/bench-press.html","sort":1},"bench_incline":{"name":"پرس بالا سینه هالتر","en":"Incline Barbell Bench Press","eq":"هالتر · نیمکت شیب‌دار ۳۰ درجه","mus":[["سینه‌ای بزرگ — بخش بالایی (ترقوه‌ای)","chest",1],["دلتوئید قدامی","delt",0.7],["سه‌سر بازو","tri",0.45]],"stab":"کتف، مرکز بدن، پاها","cues":["پشتی نیمکت ۳۰ درجه؛ باسن روی صندلی و کتف‌ها روی پشتی","کتف‌ها جمع، قفسهٔ سینه رو به بالا","میله تا بالای سینه، زیر ترقوه","فشار عمودی به بالای شانه‌ها؛ آرنج‌ها کمی جلوتر از میله","پاها محکم روی زمین؛ کمر از نیمکت جدا نشود"],"golf":"قدرت فشاری بالاتنه و ثبات کتف، انتقال نیرو در داون‌سوئینگ و کنترل چوب در لحظهٔ ضربه را بهتر می‌کند.","cat":"chest","kind":"free","grp":"هالتر","model":"play/bench-press.html","sort":2},"bench_decline":{"name":"پرس زیر سینه هالتر","en":"Decline Barbell Bench Press","eq":"هالتر · نیمکت منفی ۱۸ درجه","mus":[["سینه‌ای بزرگ — بخش پایینی (جناغی)","chest",1],["سه‌سر بازو","tri",0.5],["دلتوئید قدامی","delt",0.3]],"stab":"کتف، مرکز بدن، پاها","cues":["پاها زیر غلتک‌ها قفل؛ سر پایین‌تر از لگن","کتف‌ها جمع و پایین","میله تا پایین سینه (زیر خط نوک سینه)","فشار عمودی و کنترل‌شده؛ میله بالای شانه‌ها قفل شود","حتماً با کمک‌دهنده؛ برخاستن آرام بعد از ست"],"golf":"قدرت فشاری بالاتنه و ثبات کتف، انتقال نیرو در داون‌سوئینگ و کنترل چوب در لحظهٔ ضربه را بهتر می‌کند.","cat":"chest","kind":"free","grp":"هالتر","model":"play/bench-press.html","sort":3},"bench_close":{"name":"پرس سینه دست جمع هالتر","en":"Close-Grip Bench Press","eq":"هالتر · نیمکت تخت · دست به عرض شانه","mus":[["سه‌سر بازو","tri",1],["سینه‌ای بزرگ","chest",0.7],["دلتوئید قدامی","delt",0.5]],"stab":"کتف، مرکز بدن، پاها","cues":["دست‌ها به عرض شانه (نه چسبیده)","آرنج‌ها نزدیک بدن، ۱۵ تا ۴۵ درجه","میله تا پایین جناغ","مچ‌ها صاف و درست بالای آرنج","قفل کامل آرنج در بالا؛ تمرکز روی پشت بازو"],"golf":"پشت بازوی قوی، صاف شدن دست راست (برای راست‌دست‌ها) در لحظهٔ ضربه و انتقال نیرو به چوب را محکم‌تر می‌کند.","cat":"chest","kind":"free","grp":"هالتر","model":"play/bench-press.html","sort":4},"bench_wide":{"name":"پرس سینه دست باز هالتر","en":"Wide-Grip Bench Press","eq":"هالتر · نیمکت تخت · دست باز","mus":[["سینه‌ای بزرگ","chest",1],["دلتوئید قدامی","delt",0.55],["سه‌سر بازو","tri",0.35]],"stab":"کتف، مرکز بدن، پاها","cues":["دست‌ها حدود ۱٫۵ تا ۲ برابر عرض شانه","کتف‌ها کاملاً جمع تا شانه محافظت شود","دامنهٔ کوتاه‌تر؛ میله تا وسط سینه","آرنج‌ها ۶۰ تا ۸۵ درجه؛ فشار به سمت بالا و کمی عقب","وزنهٔ سبک‌تر از پرس معمولی انتخاب کنید"],"golf":"قدرت فشاری بالاتنه و ثبات کتف، انتقال نیرو در داون‌سوئینگ و کنترل چوب در لحظهٔ ضربه را بهتر می‌کند.","cat":"chest","kind":"free","grp":"هالتر","model":"play/bench-press.html","sort":5},"db_bench":{"name":"پرس سینه دمبل","en":"Dumbbell Bench Press","eq":"دمبل · نیمکت تخت","mus":[["سینه‌ای بزرگ","chest",1],["دلتوئید قدامی","delt",0.5],["سه‌سر بازو","tri",0.4]],"stab":"روتاتور کاف، کتف، مرکز بدن، پاها","cues":["دمبل‌ها کنار سینه؛ کف دست رو به پا","کتف‌ها جمع و پایین","پایین آوردن تا هم‌سطح سینه با کشش کامل","فشار به بالا و کمی به داخل؛ دمبل‌ها بالای شانه به هم نزدیک شوند","دو دست هم‌زمان و یکسان"],"golf":"هر دست مستقل کار می‌کند؛ عدم تقارن چپ و راست کم می‌شود و ثبات شانه برای چرخش کنترل‌شدهٔ سوئینگ بالا می‌رود.","cat":"chest","kind":"free","grp":"دمبل","model":"play/bench-press.html","sort":6},"db_incline":{"name":"پرس بالا سینه دمبل","en":"Incline Dumbbell Press","eq":"دمبل · نیمکت شیب‌دار ۳۰ درجه","mus":[["سینه‌ای بزرگ — بخش بالایی (ترقوه‌ای)","chest",1],["دلتوئید قدامی","delt",0.7],["سه‌سر بازو","tri",0.4]],"stab":"روتاتور کاف، کتف، مرکز بدن، پاها","cues":["پشتی ۳۰ درجه؛ دمبل‌ها کنار بالای سینه","کتف‌ها روی پشتی جمع","آرنج‌ها حدود ۴۵ تا ۷۵ درجه","فشار عمودی به بالای شانه‌ها","کنترل در پایین؛ پرتاب نکنید"],"golf":"هر دست مستقل کار می‌کند؛ عدم تقارن چپ و راست کم می‌شود و ثبات شانه برای چرخش کنترل‌شدهٔ سوئینگ بالا می‌رود.","cat":"chest","kind":"free","grp":"دمبل","model":"play/bench-press.html","sort":7},"db_decline":{"name":"پرس زیر سینه دمبل","en":"Decline Dumbbell Press","eq":"دمبل · نیمکت منفی ۱۸ درجه","mus":[["سینه‌ای بزرگ — بخش پایینی (جناغی)","chest",1],["سه‌سر بازو","tri",0.45],["دلتوئید قدامی","delt",0.3]],"stab":"روتاتور کاف، کتف، مرکز بدن، پاها","cues":["پاها زیر غلتک‌ها قفل","دمبل‌ها کنار پایین سینه","فشار عمودی و هم‌زمان","در پایان ست دمبل‌ها را روی سینه بیاورید و آرام بنشینید","گردن رها، نگاه به سقف"],"golf":"هر دست مستقل کار می‌کند؛ عدم تقارن چپ و راست کم می‌شود و ثبات شانه برای چرخش کنترل‌شدهٔ سوئینگ بالا می‌رود.","cat":"chest","kind":"free","grp":"دمبل","model":"play/bench-press.html","sort":8},"db_neutral":{"name":"پرس سینه دمبل دست خنثی","en":"Neutral-Grip Dumbbell Press","eq":"دمبل · نیمکت تخت · کف دست‌ها رو به هم","mus":[["سینه‌ای بزرگ","chest",0.85],["سه‌سر بازو","tri",0.7],["دلتوئید قدامی","delt",0.55]],"stab":"روتاتور کاف، کتف، مرکز بدن، پاها","cues":["کف دست‌ها رو به هم در تمام حرکت","آرنج‌ها نزدیک بدن (۱۰ تا ۴۰ درجه)","دمبل‌ها تا کنار سینه","فشار مستقیم به بالا","دوستدار شانه؛ مناسب وقتی شانه حساس است"],"golf":"هر دست مستقل کار می‌کند؛ عدم تقارن چپ و راست کم می‌شود و ثبات شانه برای چرخش کنترل‌شدهٔ سوئینگ بالا می‌رود.","cat":"chest","kind":"free","grp":"دمبل","model":"play/bench-press.html","sort":9},"db_incline_neutral":{"name":"پرس بالا سینه دمبل دست خنثی","en":"Incline Neutral-Grip Dumbbell Press","eq":"دمبل · نیمکت شیب‌دار ۳۰ درجه · کف دست‌ها رو به هم","mus":[["سینه‌ای بزرگ — بخش بالایی (ترقوه‌ای)","chest",0.85],["دلتوئید قدامی","delt",0.7],["سه‌سر بازو","tri",0.6]],"stab":"روتاتور کاف، کتف، مرکز بدن، پاها","cues":["پشتی ۳۰ درجه؛ کف دست‌ها رو به هم","آرنج‌ها نزدیک بدن","دمبل‌ها تا کنار بالای سینه","فشار عمودی به بالای شانه‌ها","کتف‌ها روی پشتی ثابت"],"golf":"هر دست مستقل کار می‌کند؛ عدم تقارن چپ و راست کم می‌شود و ثبات شانه برای چرخش کنترل‌شدهٔ سوئینگ بالا می‌رود.","cat":"chest","kind":"free","grp":"دمبل","model":"play/bench-press.html","sort":10},"db_fly":{"name":"فلای سینه دمبل","en":"Dumbbell Chest Fly","eq":"دمبل · نیمکت تخت","mus":[["سینه‌ای بزرگ","chest",1],["دلتوئید قدامی","delt",0.4]],"stab":"روتاتور کاف، کتف، مرکز بدن، پاها","cues":["آرنج‌ها کمی خم و ثابت (مثل بغل کردن یک درخت)","دست‌ها در یک قوس باز شوند تا کشش سینه","پایین‌تر از سطح شانه نروید","برگرداندن با انقباض سینه، نه با خم و راست کردن آرنج","وزنه سبک‌تر از پرس؛ کنترل کامل"],"golf":"دامنهٔ حرکتی و کشش کنترل‌شدهٔ قفسهٔ سینه را زیاد می‌کند؛ برای چرخش آزاد شانه در بک‌سوئینگ و جلوگیری از جمع شدن شانه‌ها مفید است.","cat":"chest","kind":"free","grp":"فلای دمبل","model":"play/bench-press.html","sort":11},"db_fly_incline":{"name":"فلای بالا سینه دمبل","en":"Incline Dumbbell Fly","eq":"دمبل · نیمکت شیب‌دار ۳۰ درجه","mus":[["سینه‌ای بزرگ — بخش بالایی (ترقوه‌ای)","chest",1],["دلتوئید قدامی","delt",0.55]],"stab":"روتاتور کاف، کتف، مرکز بدن، پاها","cues":["پشتی ۳۰ درجه","آرنج‌ها کمی خم و ثابت","قوس باز شدن در سطح بالای سینه","جمع کردن دست‌ها بالای شانه‌ها","کشش کنترل‌شده؛ بدون ضربه در پایین"],"golf":"دامنهٔ حرکتی و کشش کنترل‌شدهٔ قفسهٔ سینه را زیاد می‌کند؛ برای چرخش آزاد شانه در بک‌سوئینگ و جلوگیری از جمع شدن شانه‌ها مفید است.","cat":"chest","kind":"free","grp":"فلای دمبل","model":"play/bench-press.html","sort":12},"db_fly_decline":{"name":"فلای زیر سینه دمبل","en":"Decline Dumbbell Fly","eq":"دمبل · نیمکت منفی ۱۸ درجه","mus":[["سینه‌ای بزرگ — بخش پایینی (جناغی)","chest",1],["دلتوئید قدامی","delt",0.3]],"stab":"روتاتور کاف، کتف، مرکز بدن، پاها","cues":["پاها زیر غلتک‌ها قفل","آرنج‌ها کمی خم و ثابت","باز کردن تا سطح بدن","جمع کردن با انقباض پایین سینه","آهسته و کنترل‌شده"],"golf":"دامنهٔ حرکتی و کشش کنترل‌شدهٔ قفسهٔ سینه را زیاد می‌کند؛ برای چرخش آزاد شانه در بک‌سوئینگ و جلوگیری از جمع شدن شانه‌ها مفید است.","cat":"chest","kind":"free","grp":"فلای دمبل","model":"play/bench-press.html","sort":13},"smith_bench":{"name":"پرس سینه اسمیت","en":"Smith Machine Bench Press","eq":"دستگاه اسمیت · نیمکت تخت","mus":[["سینه‌ای بزرگ","chest",1],["دلتوئید قدامی","delt",0.45],["سه‌سر بازو","tri",0.5]],"stab":"کتف و مرکز بدن (مسیر میله ثابت است)","cues":["نیمکت را طوری بگذارید که میله روی خط نوک سینه پایین بیاید","قلاب‌ها را با چرخش مچ آزاد کنید","مسیر میله عمودی است؛ کتف‌ها جمع","ضامن‌های ایمنی را کمی بالاتر از سینه تنظیم کنید","در پایان، میله را با چرخش مچ روی قلاب قفل کنید"],"golf":"مسیر هدایت‌شده اجازه می‌دهد با خیال راحت روی بار و حجم تمرکز کنید؛ گزینهٔ امن برای تمرین بدون کمک‌دهنده.","cat":"chest","kind":"machine","grp":"اسمیت","model":"play/bench-press.html","sort":14},"smith_incline":{"name":"پرس بالا سینه اسمیت","en":"Smith Machine Incline Press","eq":"دستگاه اسمیت · نیمکت شیب‌دار ۳۰ درجه","mus":[["سینه‌ای بزرگ — بخش بالایی (ترقوه‌ای)","chest",1],["دلتوئید قدامی","delt",0.65],["سه‌سر بازو","tri",0.45]],"stab":"کتف و مرکز بدن (مسیر میله ثابت است)","cues":["نیمکت ۳۰ درجه زیر میله؛ میله روی بالای سینه فرود بیاید","کتف‌ها روی پشتی جمع","مسیر عمودی و کنترل‌شده","ضامن ایمنی بالای سینه","آرنج‌ها ۴۵ تا ۷۰ درجه"],"golf":"مسیر هدایت‌شده اجازه می‌دهد با خیال راحت روی بار و حجم تمرکز کنید؛ گزینهٔ امن برای تمرین بدون کمک‌دهنده.","cat":"chest","kind":"machine","grp":"اسمیت","model":"play/bench-press.html","sort":15},"smith_decline":{"name":"پرس زیر سینه اسمیت","en":"Smith Machine Decline Press","eq":"دستگاه اسمیت · نیمکت منفی ۱۸ درجه","mus":[["سینه‌ای بزرگ — بخش پایینی (جناغی)","chest",1],["سه‌سر بازو","tri",0.5],["دلتوئید قدامی","delt",0.3]],"stab":"کتف و مرکز بدن (مسیر میله ثابت است)","cues":["پاها زیر غلتک‌ها قفل","میله روی پایین سینه فرود بیاید","مسیر عمودی؛ کتف‌ها جمع و پایین","ضامن ایمنی بالای سینه","بعد از ست آرام بنشینید"],"golf":"مسیر هدایت‌شده اجازه می‌دهد با خیال راحت روی بار و حجم تمرکز کنید؛ گزینهٔ امن برای تمرین بدون کمک‌دهنده.","cat":"chest","kind":"machine","grp":"اسمیت","model":"play/bench-press.html","sort":16}};
+
+
+/* ---------- exercise library («کتابخانهٔ حرکات») — categories → equipment → exercise ---------- */
+Object.keys(LIBX).forEach(k=>{EX[k]=Object.assign({},EX[k]||{},LIBX[k]);});
+const KIND=[['free','وزنهٔ آزاد','Free Weights'],['machine','دستگاه','Machines'],['cable','سیم‌کش','Cables'],['body','وزن بدن','Bodyweight']];
+/* «soon»: the professional roadmap per category (shown greyed until its 3D model is built) */
+const CATS=[
+ {id:'chest',fa:'سینه',en:'Chest',soon:{machine:['پرس سینه دستگاه','فلای دستگاه (پک‌دک)'],cable:['کراس‌اور سیم‌کش از بالا','کراس‌اور سیم‌کش از پایین','فلای سیم‌کش تک‌دست'],body:['شنا سوئدی','شنا سوئدی شیب منفی','دیپ پارالل — تمرکز سینه']}},
+ {id:'back',fa:'پشت',en:'Back',soon:{free:['ددلیفت هالتر','زیربغل هالتر خم','زیربغل تک‌خم دمبل'],machine:['زیربغل تی‌بار','زیربغل دستگاه نشسته'],cable:['لت پول‌داون','قایقی سیم‌کش','پول‌اوور سیم‌کش ایستاده'],body:['بارفیکس','فیله کمر (هایپراکستنشن)']}},
+ {id:'shoulders',fa:'سرشانه',en:'Shoulders',soon:{free:['پرس سرشانه هالتر','پرس سرشانه دمبل','نشر جانب دمبل','نشر خم دمبل'],machine:['پرس سرشانه اسمیت','پرس سرشانه دستگاه'],cable:['نشر جانب سیم‌کش','فیس‌پول'],body:['پایک پوش‌آپ']}},
+ {id:'arms',fa:'بازو',en:'Arms',soon:{free:['جلوبازو هالتر','جلوبازو چکشی دمبل','پشت‌بازو خوابیده هالتر','مچ و ساعد هالتر'],machine:['جلوبازو لاری دستگاه','پشت‌بازو دستگاه'],cable:['پشت‌بازو سیم‌کش طنابی','جلوبازو سیم‌کش'],body:['دیپ نیمکت']}},
+ {id:'legs',fa:'پا و باسن',en:'Legs & Glutes',soon:{free:['اسکوات هالتر','ددلیفت رومانیایی','لانج دمبل','هیپ تراست هالتر','اسکوات گابلت'],machine:['پرس پا','جلوپا دستگاه','پشت‌پا دستگاه','ساق پا دستگاه'],cable:['کیک‌بک باسن سیم‌کش'],body:['اسپلیت اسکوات بلغاری','پل باسن']}},
+ {id:'core',fa:'شکم و پهلو',en:'Core & Obliques',soon:{free:['چرخش روسی با وزنه','راه رفتن کشاورز'],machine:['کرانچ دستگاه'],cable:['پالوف پرس','کرانچ سیم‌کش زانو'],body:['پلانک','پلانک پهلو','زیرشکم خلبانی','ددباگ']}},
+ {id:'golf',fa:'توان چرخشی گلف',en:'Golf Rotation & Power',soon:{free:['پرتاب چرخشی مدیسین‌بال','چرخش لندماین'],cable:['وودچاپ سیم‌کش بالا به پایین','وودچاپ سیم‌کش پایین به بالا'],body:['چرخش ستون فقرات سینه‌ای','تحرک لگن ۹۰/۹۰']}}
+];
+const EQI={ /* gold line icons per equipment */
+ 'هالتر':'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 24h36"/><rect x="10" y="14" width="5" height="20" rx="1.5"/><rect x="33" y="14" width="5" height="20" rx="1.5"/><path d="M15.5 18v12M32.5 18v12"/></svg>',
+ 'دمبل':'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M17 24h14"/><path d="M8 17l4-2h3v18h-3l-4-2z"/><path d="M40 17l-4-2h-3v18h3l4-2z"/></svg>',
+ 'فلای دمبل':'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M8 30c4-12 28-12 32 0" stroke-dasharray="2 4"/><path d="M5 31h7M5 28v6M12 28v6M36 31h7M36 28v6M43 28v6"/><circle cx="24" cy="15" r="3"/></svg>',
+ 'اسمیت':'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 6v36M36 6v36M8 42h32"/><path d="M6 20h36"/><rect x="8" y="15" width="3" height="10" rx="1"/><rect x="37" y="15" width="3" height="10" rx="1"/></svg>',
+ machine:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M14 42V8h6v34M10 42h28"/><rect x="24" y="12" width="10" height="16" rx="2"/><path d="M24 17h10M24 22h10"/></svg>',
+ cable:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="24" cy="9" r="4"/><path d="M24 13v20"/><path d="M18 33h12l-2 6h-8z"/><path d="M10 42h28"/></svg>',
+ body:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="9" r="4"/><path d="M24 14v14M14 20l10-3 10 3M18 42l6-14 6 14"/></svg>'
+};
+const CATI={ /* category tile glyphs */
+ chest:'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 20c6-4 14-5 22-2 8-3 16-2 22 2l-2 16c-4 6-12 8-20 4-8 4-16 2-20-4z"/><path d="M32 18v24"/></svg>',
+ back:'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M32 8v48"/><path d="M14 16c6 2 12 2 18 0 6 2 12 2 18 0l-4 26-14 8-14-8z"/></svg>',
+ shoulders:'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="32" cy="14" r="6"/><path d="M8 34c2-10 10-14 24-14s22 4 24 14"/><path d="M16 30v22M48 30v22"/></svg>',
+ arms:'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 50l10-18c2-10 10-18 18-16 6 2 6 10 0 12l-8 2-6 20z"/><path d="M40 16c6-4 12 0 12 6"/></svg>',
+ legs:'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 8l-2 22 4 14-2 12h8l2-12-2-14 2-22"/><path d="M42 8l2 22-4 14 2 12h-8"/></svg>',
+ core:'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="20" y="10" width="24" height="44" rx="10"/><path d="M32 12v40M21 24h22M21 34h22M22 44h20"/></svg>',
+ golf:'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 54V10l20 8-20 8"/><path d="M10 48c10-4 34-4 44 0" stroke-dasharray="3 4"/><circle cx="46" cy="44" r="3"/></svg>'
+};
+const eqKey=x=>/^db_/.test(x)?'db':/^smith/.test(x)?'smith':'bb';
+const catEx=c=>Object.keys(EX).filter(k=>EX[k].cat===c&&EX[k].model).sort((a,b)=>(EX[a].sort||0)-(EX[b].sort||0));
+const PLATESET=[20,15,10,5,2.5,1.25],SMITH_BAR=15;
+/* exact plate breakdown for a programmed weight — the 3D player builds the same split */
+function loadInfo(x,kg){
+  const q=eqKey(x);if(q==='db')return {q,txt:`دو دمبل ${nf1(kg)} کیلویی`,short:'دمبل'};
+  const bar=q==='smith'?SMITH_BAR:plan().bar,bn=q==='smith'?'میلهٔ اسمیت':'هالتر';
+  let s=(kg-bar)/2+1e-6;if(s<=0)return {q,bar,txt:`فقط ${bn} ${nf(bar)} کیلویی`,short:bn};
+  const pl=[];for(const p of PLATESET)while(s>=p){pl.push(p);s-=p;}
+  const got=bar+2*pl.reduce((a,b)=>a+b,0);
+  return {q,bar,pl,short:bn,txt:`${bn} ${nf(bar)} + هر طرف ${pl.map(nf1).join(' + ')}`+(Math.abs(got-kg)>.01?` (نزدیک‌ترین: ${nf1(got)} کیلو)`:'')};
+}
+function defKg(x){
+  const P=plan();for(const d of Object.values(P.days||{}))if(d.ex===x&&d.kg)return d.kg;
+  const k=pk(),q=eqKey(x),fly=/fly/.test(x);
+  const T={bb:{m:70,f:35,g:15,t:15},smith:{m:60,f:30,g:15,t:15},db:{m:22.5,f:10,g:6,t:6},fly:{m:14,f:6,g:4,t:4}};
+  return T[fly?'fly':q][k]||T[fly?'fly':q].m;
+}
+function inPlan(x){return Object.values(plan().days||{}).some(d=>d.ex===x);}
+
+/* train tab block: category grid */
+function vLibrary(){
+  return `<div class="sec"><h3>کتابخانهٔ حرکات <small style="color:var(--t2)">Exercise Library</small></h3><div class="lb-grid">${CATS.map(c=>{const n=catEx(c.id).length;
+    return `<button class="lb-cat ${n?'on':''}" data-act="lbcat" data-c="${c.id}"><span class="gl">${CATI[c.id]}</span><b>${c.fa}</b><small>${c.en}</small><i class="num">${n?`${nf(n)} حرکت · سه‌بعدی`:'به‌زودی'}</i></button>`;}).join('')}</div></div>`;
+}
+function openLib(cid){
+  const c=CATS.find(z=>z.id===cid);if(!c)return;S.lib=cid;
+  const xs=catEx(cid),n=xs.length;
+  const row=x=>{const e=EX[x];return `<button class="lb-r" data-act="lbex" data-x="${x}"><span class="ic">${EQI[e.grp]||EQI[e.kind]||EQI.machine}</span><span class="tx"><b>${e.name}</b><small>${e.en}</small></span>${inPlan(x)?'<i class="pl">در برنامه</i>':''}<i class="b3">3D</i><span class="chev">${IC.chevL}</span></button>`;};
+  const soonRow=(t,kd)=>`<div class="lb-r off"><span class="ic">${EQI[kd]||EQI.machine}</span><span class="tx"><b>${t}</b></span><i class="sn">به‌زودی</i></div>`;
+  const secs=KIND.map(([kd,fa,en])=>{
+    const mine=xs.filter(x=>EX[x].kind===kd),grps=[...new Set(mine.map(x=>EX[x].grp))],soon=(c.soon&&c.soon[kd])||[];
+    if(!mine.length&&!soon.length)return '';
+    return `<div class="sec"><h3>${fa} <small style="color:var(--t2)">${en}</small></h3>${grps.map(g=>`<div class="lb-g">${g}</div><div class="card lb-list">${mine.filter(x=>EX[x].grp===g).map(row).join('')}</div>`).join('')}
+      ${soon.length?`${mine.length?'<div class="lb-g">در حال ساخت</div>':''}<div class="card lb-list">${soon.map(t=>soonRow(t,kd)).join('')}</div>`:''}</div>`;}).join('');
+  $('#push').innerHTML=`<div class="bar" id="pbar"><button class="bk" data-act="back">${IC.chevR}<span>بازگشت</span></button><div class="clock">${c.fa}</div></div>
+  <div class="body" id="pbody"><div class="lb-hd"><span class="gl">${CATI[c.id]}</span><div><div class="k">کتابخانهٔ حرکات</div><h2>${c.fa} <small>${c.en}</small></h2>
+   <div class="mc">${n?`${nf(n)} حرکت با نمایش سه‌بعدی — به ترتیب نوع تجهیزات`:'حرکات این دسته در حال ساخت است'}</div></div></div>${secs}<div style="height:30px"></div></div>`;
+  $('#push').classList.add('on');$('#tabbar').classList.add('off');
+  $('#pbody').addEventListener('scroll',e=>$('#pbar').classList.toggle('sc',e.target.scrollTop>10),{passive:true});
+}
+/* exercise sheet: details + exact load picker + 3D */
+const LX={x:null,kg:0};
+function lxStep(kg,q,d){const st=q==='db'?(kg+(d>0?0:-.01)<20?1:2.5):2.5;let v=Math.round((kg+d*st)/st)*st;if(q==='db'&&v>20&&v<22.5)v=d>0?22.5:20;return v;}
+function lxPaint(){const i=loadInfo(LX.x,LX.kg);const a=$('#lxkg'),b=$('#lxpl');if(a)a.textContent=nf1(LX.kg);if(b)b.textContent=i.txt;}
+function openEx(x){
+  const e=EX[x];if(!e)return;LX.x=x;LX.kg=defKg(x);
+  sheet(`<div class="lx"><div class="k">${e.eq}</div><h2>${e.name}</h2><div class="en">${e.en}</div>
+   <div class="tags">${(e.mus||[]).map((m,i)=>`<i class="${i?'':'g'}">${m[0]}</i>`).join('')}</div>
+   <div class="lx-w"><button class="sq" data-act="lxk" data-d="-1" aria-label="کمتر">−</button><div class="v"><b class="num"><span id="lxkg"></span> <small>kg</small></b><small id="lxpl"></small></div><button class="sq" data-act="lxk" data-d="1" aria-label="بیشتر">${IC.plus}</button></div>
+   ${can('gym.player.form')?`<button class="btn-gold" style="width:100%" data-act="lxplay">${IC.cube} نمایش سه‌بعدی با همین وزنه</button>`:''}
+   <h3>نکات فرم</h3><ol>${(e.cues||[]).map(c=>`<li>${c}</li>`).join('')}</ol><div class="mc">ثبات‌دهنده‌ها: ${e.stab||'—'}</div>
+   <h3>چرا برای گلف؟</h3><p class="golfp">${e.golf||''}</p></div>`);
+  lxPaint();
+}
+/* session → player: the weight of the current set */
+function sessCtx(){const A=S.data.active;if(!A)return {};const d=plan().days[A.day]||{},s=A.sets.find(z=>!z.done)||A.sets[0]||{};return {ex:A.ex,kg:s.kg||d.kg,reps:s.reps||d.reps};}
+Object.assign(ACT,{
+  lbcat:a=>openLib(a.dataset.c),
+  lbex:a=>openEx(a.dataset.x),
+  lxk:a=>{LX.kg=Math.max(eqKey(LX.x)==='db'?1:(eqKey(LX.x)==='smith'?SMITH_BAR:plan().bar),Math.min(300,lxStep(LX.kg,eqKey(LX.x),+a.dataset.d)));lxPaint();},
+  lxplay:()=>{const o={ex:LX.x,kg:LX.kg};closeSheet();openPlayer(o);}
 });
 </script>
 </body>

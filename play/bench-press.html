@@ -64,6 +64,8 @@ canvas{display:block;width:100%;height:100%;cursor:grab}
 .hud-top{position:absolute;top:12px;inset-inline:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;pointer-events:none}
 .chip{display:flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:99px;background:rgba(5,14,10,.55);border:1px solid rgba(212,175,55,.18);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-size:11px;color:#cdbf98;letter-spacing:.2px;white-space:nowrap}
 .chip b{font-weight:600;color:#f1dfa8}
+.hud-ld{position:absolute;top:46px;left:50%;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;align-items:baseline;gap:2px 7px;max-width:calc(100% - 24px);padding:5px 12px;border-radius:14px;background:rgba(5,14,10,.55);border:1px solid rgba(212,175,55,.18);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-size:11px;color:#cdbf98;pointer-events:none;direction:rtl;text-align:center}
+.hud-ld:empty{display:none}.hud-ld b{font:600 13px Georgia,serif;color:#f6e6b4}.hud-ld span{color:#a9b3ab;font-size:10.5px}.hud-ld em{flex-basis:100%;font-style:normal;color:#e0a46a;font-size:10px}
 .chip .dot{width:6px;height:6px;border-radius:50%;background:#d9b45a;box-shadow:0 0 8px #d9b45a}
 .chip.rep b{font:600 13px Georgia,serif;color:#f6e6b4}.chip.rep span{color:#8d9b92}.chip.rep em{font-style:normal;color:#8d9b92;font-size:10px;margin-inline-start:2px}
 .gauges{position:absolute;right:12px;bottom:64px;display:flex;gap:8px;pointer-events:none}
@@ -101,7 +103,9 @@ body.embed .wrap{display:block;padding:0;height:100%}
 body.embed .side{display:none}
 body.embed .stage{height:100vh;height:100dvh;min-height:0;border:0;border-radius:0}
 body.embed .hud-top{top:calc(env(safe-area-inset-top,0px) + 62px)}
-body.embed .musleg{top:calc(env(safe-area-inset-top,0px) + 96px)}
+body.embed .musleg{top:calc(env(safe-area-inset-top,0px) + 132px)}
+body.embed .hud-ld{top:calc(env(safe-area-inset-top,0px) + 96px)}
+body.bodyv .hud-ld{display:none!important}
 body.embed .dock{bottom:calc(env(safe-area-inset-bottom,0px) + 14px)}
 body.embed .gauges{bottom:calc(env(safe-area-inset-bottom,0px) + 70px)}
 </style>
@@ -146,6 +150,7 @@ body.embed .gauges{bottom:calc(env(safe-area-inset-bottom,0px) + 70px)}
  <main class="stage" id="stage">
   <div id="loading" style="position:absolute;inset:0;display:grid;place-items:center;color:#f3dc8a;font-size:14px;pointer-events:none">در حال ورود به PuttClub Gym…</div>
   <div class="hud-top"><div class="chip" id="phase"><i class="dot"></i><b>—</b></div><div class="chip rep"><b id="rep">۰</b><span>/</span><span id="repT">—</span><em>تکرار</em></div></div>
+  <div class="hud-ld" id="ldc"></div>
   <div class="musleg" id="musLeg"><div class="mh">فشار روی عضلات هدف</div>
    <div class="mr" id="ml_pec"><span>سینه‌ای بزرگ</span><i></i><b>—</b></div>
    <div class="mr" id="ml_deltA"><span>دلتوئید قدامی</span><i></i><b>—</b></div>
@@ -5235,6 +5240,8 @@ function hair(sk,O,colliderBones){
         const B=env.bench;if(B&&p.x>B.x0-rad&&p.x<B.x1+rad&&p.z>-B.zw-rad&&p.z<B.zw+rad&&p.y<B.top+rad&&p.y>B.top-.13){
           const pen=[[B.top+rad-p.y,1],[p.x-(B.x0-rad),2],[(B.x1+rad)-p.x,3],[p.z+B.zw+rad,4],[B.zw+rad-p.z,5]].sort((a,b)=>a[0]-b[0])[0];
           if(pen[1]===1)p.y=B.top+rad;else if(pen[1]===2)p.x=B.x0-rad;else if(pen[1]===3)p.x=B.x1+rad;else if(pen[1]===4)p.z=-B.zw-rad;else p.z=B.zw+rad;}
+        if(env.pads)for(const P of env.pads){const dx=p.x-P.o[0],dy=p.y-P.o[1],dz=p.z-P.o[2];const al=dx*P.u[0]+dy*P.u[1]+dz*P.u[2],bn=dx*P.n[0]+dy*P.n[1]+dz*P.n[2];
+          if(al>-.02&&al<P.L+.02&&Math.abs(dz)<P.zw+rad&&bn<rad&&bn>-.12){const k=rad-bn;p.x+=P.n[0]*k;p.y+=P.n[1]*k;p.z+=P.n[2]*k;}}
         if(p.y<.004+rad)p.y=.004+rad;}
     }
   }
@@ -6279,7 +6286,45 @@ const PROF={
     bar:{len:1.6,r:.011,kg:10,plates:[{r:.11,w:.022}]},
     rx:{sets:'۲',reps:'۱۲',load:'۱۵ کیلو',pct:'≈۵۰٪ 1RM',rpe:'RPE ۵–۶',tempo:'۲-۱-۲',rest:'۶۰ ثانیه'},repN:12,tempo:[2,.6,2,.6],guard:true}
 };
-const BENCH_TOP=.45;
+const BENCH_TOP=.45,DECL_H=.64;
+/* ---------- chest family: one parametric motion — equipment, bench angle, grip and touch point per exercise ----------
+   eq: bb هالتر · db دمبل · smith اسمیت | ang: زاویهٔ نیمکت (+ بالا سینه، − زیر سینه) | grip: عرض دست ÷ نیم‌پهنای شانه
+   touch: فاصلهٔ نقطهٔ تماس میله تا خط شانه روی جناغ (متر) | eo: باز بودن آرنج | ab: بازهٔ درست زاویهٔ آرنج-تنه */
+const EXD={
+ bench:{eq:'bb',ang:0,grip:1.55,touch:.20,eo:.95,ab:[45,72]},
+ bench_incline:{eq:'bb',ang:30,grip:1.55,touch:.08,eo:.9,ab:[45,72]},
+ bench_decline:{eq:'bb',ang:-18,grip:1.5,touch:.27,eo:.85,ab:[40,65]},
+ bench_close:{eq:'bb',ang:0,grip:1.02,touch:.23,eo:.3,ab:[15,45]},
+ bench_wide:{eq:'bb',ang:0,grip:1.95,touch:.18,eo:1.2,ab:[60,85]},
+ db_bench:{eq:'db',ang:0,mv:'press',hand:'pro',touch:.19,eo:.8,ab:[45,75]},
+ db_incline:{eq:'db',ang:30,mv:'press',hand:'pro',touch:.09,eo:.8,ab:[45,75]},
+ db_decline:{eq:'db',ang:-18,mv:'press',hand:'pro',touch:.26,eo:.75,ab:[40,70]},
+ db_neutral:{eq:'db',ang:0,mv:'press',hand:'neu',touch:.20,eo:.28,ab:[10,40]},
+ db_incline_neutral:{eq:'db',ang:30,mv:'press',hand:'neu',touch:.10,eo:.28,ab:[10,40]},
+ db_fly:{eq:'db',ang:0,mv:'fly',hand:'neu',eo:.9,ab:[60,92]},
+ db_fly_incline:{eq:'db',ang:30,mv:'fly',hand:'neu',eo:.9,ab:[60,92]},
+ db_fly_decline:{eq:'db',ang:-18,mv:'fly',hand:'neu',eo:.9,ab:[55,90]},
+ smith_bench:{eq:'smith',ang:0,grip:1.6,touch:.19,eo:.95,ab:[45,72]},
+ smith_incline:{eq:'smith',ang:30,grip:1.6,touch:.08,eo:.9,ab:[45,72]},
+ smith_decline:{eq:'smith',ang:-18,grip:1.55,touch:.26,eo:.85,ab:[40,65]}
+};
+let EXK=EXD[QP.get('ex')]?QP.get('ex'):'bench',EXN=EXD[EXK];
+let LOADQ=parseFloat(QP.get('kg'));LOADQ=LOADQ>0&&LOADQ<500?LOADQ:null;
+const REPQ=Math.max(0,parseInt(QP.get('reps'))||0);
+const BARS={20:{len:2.2,r:.014,kg:20},15:{len:2.01,r:.0125,kg:15},10:{len:1.6,r:.011,kg:10}},BARQ=BARS[parseFloat(QP.get('bar'))]||null;
+/* وزنه‌های باشگاه (هر طرف، از سنگین به سبک) — ۹۰ کیلو روی میلهٔ ۲۰ → هر طرف ۲۰ + ۱۵ */
+const PLATES=[20,15,10,5,2.5,1.25],SMITH_KG=15;
+const DEFKG={bb:{m:70,f:35,g:15,t:15},smith:{m:60,f:30,g:15,t:15},db:{m:22.5,f:10,g:6,t:6},fly:{m:14,f:6,g:4,t:4}};
+function plateSplit(total,barKg){let side=Math.max(0,(total-barKg)/2)+1e-6;const out=[];for(const q of PLATES){while(side>=q){out.push(q);side-=q;}}
+  const got=barKg+out.reduce((a,b)=>a+b,0)*2;return {plates:out,total:got,rem:Math.round((total-got)*100)/100};}
+/* muscle-load modifiers per variant (multiplies the flat barbell model) */
+function loadMods(X){const L={};const mul=o=>{for(const k in o)L[k]=(L[k]??1)*o[k];};
+  if(X.ang>0)mul({pec:.94,deltA:1.28,triceps:.95,serratus:1.1});if(X.ang<0)mul({pec:1.04,deltA:.72,lats:1.35,triceps:1.02});
+  if(X.eq==='bb'&&X.grip<1.2)mul({pec:.8,triceps:1.35,deltA:1.05});if(X.eq==='bb'&&X.grip>1.8)mul({pec:1.12,triceps:.8,deltA:1.06});
+  if(X.eq==='db')mul({cuff:1.3,biceps:1.35,serratus:1.15,forearm:1.12});if(X.hand==='neu'&&X.mv==='press')mul({triceps:1.15,deltA:1.08,pec:.93});
+  if(X.mv==='fly')mul({triceps:.22,pec:1.12,biceps:2.1,deltA:.88,forearm:.85,lats:.7});if(X.eq==='smith')mul({cuff:.7,serratus:.8,lats:.85,abs:.8});
+  return L;}
+let LMOD=loadMods(EXN);
 
 /* ---------- PuttClub Gym — scene ---------- */
 const stage=document.getElementById('stage');
@@ -6566,7 +6611,8 @@ rbox(1.26,.075,.30,.03,M.leather,.12,BENCH_TOP-.0375,0,rig);
 rbox(1.2,.03,.22,.01,M.alu,.12,BENCH_TOP-.09,0,rig);
 rbox(.04,.07,.3,.015,M.wood,-.505,BENCH_TOP-.0375,0,rig);
 for(const x of [-.40,.64]){rbox(.07,BENCH_TOP-.1,.07,.02,M.alu,x,(BENCH_TOP-.1)/2,0,rig);rbox(.08,.04,.52,.015,M.black,x,.02,0,rig);}
-badgeQueue.push(()=>{const b=badge(rig,'PUTTCLUB','',.22,.07,-.48,BENCH_TOP-.04,0,-Math.PI/2);});
+badgeQueue.push(()=>{const b=badge(benchFlat,'PUTTCLUB','',.22,.07,-.48,BENCH_TOP-.04,0,-Math.PI/2);});
+const RIG_NB=rig.children.length;
 const RACK_X=.60;
 /* Olympic flat-bench uprights (pro-station style) with plate-storage horns */
 for(const z of [-.56,.56]){
@@ -6577,10 +6623,11 @@ for(const z of [-.56,.56]){
   cyl(V(RACK_X+.32,.42,z),V(RACK_X+.32,.42,z+(z>0?.2:-.2)),.025,M.alu,rig);
   cyl(V(RACK_X+.32,.22,z),V(RACK_X+.32,.22,z+(z>0?.2:-.2)),.025,M.alu,rig);
   rbox(.06,.05,.36,.015,M.white,RACK_X+.16,.58,z,rig).rotation.z=.6;
-  badgeQueue.push(()=>badge(rig,'PUTTCLUB','',.14,.045,RACK_X,1.0,z+(z>0?.039:-.039),z>0?0:Math.PI));
+  badgeQueue.push(()=>badge(rackFlat,'PUTTCLUB','',.14,.045,RACK_X,1.0,z+(z>0?.039:-.039),z>0?0:Math.PI));
 }
 rbox(.5,.05,1.24,.015,M.black,RACK_X+.16,.025,0,rig);
 rbox(.07,.07,1.12,.015,M.white,RACK_X+.32,.62,0,rig);
+const benchFlat=new THREE.Group(),rackFlat=new THREE.Group();rig.children.slice().forEach((c,i)=>(i<RIG_NB?benchFlat:rackFlat).add(c));rig.add(benchFlat,rackFlat);
 /* barbell plates with PuttClub branding */
 const plateFace=canvasTex(512,512,(g,w,h)=>{g.fillStyle='#121514';g.fillRect(0,0,w,h);
   g.strokeStyle='#b99a5e';g.lineWidth=10;g.beginPath();g.arc(w/2,h/2,w/2-14,0,7);g.stroke();
@@ -6591,34 +6638,126 @@ const plateFace=canvasTex(512,512,(g,w,h)=>{g.fillStyle='#121514';g.fillRect(0,0
 const plateM=new THREE.MeshStandardMaterial({color:0x1b1f1d,metalness:.5,roughness:.5,roughnessMap:brushR,normalMap:brushN,normalScale:new THREE.Vector2(.25,.25)});
 const plateFaceM=new THREE.MeshStandardMaterial({map:plateFace,metalness:.45,roughness:.4});
 const plateRim=M.gold, steelM=M.steel;
+/* iron plates: radius / thickness per kg; face printed with the weight */
+const PLG={20:[.225,.040],15:[.20,.034],10:[.1625,.030],5:[.115,.024],2.5:[.095,.019],1.25:[.08,.015]};
+const PFM={};function plateFaceMat(kg){if(PFM[kg])return PFM[kg];
+  const t=canvasTex(512,512,(g,w,h)=>{g.fillStyle='#121514';g.fillRect(0,0,w,h);
+    g.strokeStyle='#b99a5e';g.lineWidth=12;g.beginPath();g.arc(w/2,h/2,w/2-14,0,7);g.stroke();g.lineWidth=3;g.beginPath();g.arc(w/2,h/2,w/2-62,0,7);g.stroke();
+    g.fillStyle='#cdb07a';g.textAlign='center';g.textBaseline='middle';
+    if(kg>=5){g.font='700 40px Georgia';g.save();g.translate(w/2,h/2);const s='PUTTCLUB · GYM · ';for(let i=0;i<s.length;i++){g.save();g.rotate((i/s.length-.25)*Math.PI*1.1+Math.PI*.18);g.fillText(s[i],0,-(w/2-38));g.restore();}g.restore();}
+    const lab=String(kg);g.font=`700 ${kg>=5?92:120}px Georgia`;g.fillStyle='#e2c88e';g.fillText(lab,w/2,h/2-(kg>=5?118:104));
+    g.font=`600 ${kg>=5?40:56}px Georgia`;g.fillText('KG',w/2,h/2+(kg>=5?120:110));
+    g.fillStyle='#1a1e1c';g.beginPath();g.arc(w/2,h/2,48,0,7);g.fill();g.strokeStyle='#8f7a4e';g.lineWidth=4;g.beginPath();g.arc(w/2,h/2,48,0,7);g.stroke();});
+  return PFM[kg]=new THREE.MeshStandardMaterial({map:t,metalness:.45,roughness:.4});}
+const plateMats=()=>[plateM,plateFaceM,...Object.values(PFM)];
+function barSpec(){if(EXN.eq==='smith')return {len:2.1,r:.0145,kg:SMITH_KG,ss:.74,smith:true};const b=BARQ||prof.bar;return {len:b.len,r:b.r,kg:b.kg,ss:b.len/2-.42*(b.len/2.2)};}
+function curLoad(){const k=cur&&cur.pk||'m',e=EXN.eq==='db'?(EXN.mv==='fly'?'fly':'db'):EXN.eq;return LOADQ||DEFKG[e][k];}
 const knurlM=new THREE.MeshStandardMaterial({color:0xa9aeab,metalness:1,roughness:.34,normalMap:knurlN,normalScale:new THREE.Vector2(.7,.7)});
 
 /* barbell */
 const bar=new THREE.Group();scene.add(bar);
-function buildBar(p){
-  while(bar.children.length){const c=bar.children.pop();c.geometry&&c.geometry.dispose();}
-  const b=p.bar,half=b.len/2;
+let LOADI=null;
+function buildBar(){
+  while(bar.children.length){const c=bar.children.pop();c.traverse(o=>o.geometry&&o.geometry.dispose());}
+  const b=barSpec(),half=b.len/2;
+  LOADI=EXN.eq==='db'?{db:curLoad()}:Object.assign({bar:b.kg,want:curLoad()},plateSplit(curLoad(),b.kg));
+  if(EXN.eq==='db'){buildDB(curLoad());return;}
   const shaft=new THREE.Mesh(new THREE.CylinderGeometry(b.r,b.r,b.len,32),knurlM);shaft.rotation.x=Math.PI/2;shaft.castShadow=true;bar.add(shaft);
   for(const sg of [-1,1]){
-    const ss=half-.42*(b.len/2.2);
+    const ss=b.ss;
     const col=new THREE.Mesh(new THREE.CylinderGeometry(b.r*2.6,b.r*2.6,.03,20),steelM);col.rotation.x=Math.PI/2;col.position.z=sg*ss;bar.add(col);
     const slv=new THREE.Mesh(new THREE.CylinderGeometry(b.r*1.9,b.r*1.9,half-ss,20),steelM);slv.rotation.x=Math.PI/2;slv.position.z=sg*(ss+(half-ss)/2);bar.add(slv);
     let z=ss+.02;
-    for(const q of b.plates){
-      const pl=new THREE.Mesh(new THREE.CylinderGeometry(q.r,q.r,q.w,48),[plateM,plateFaceM,plateFaceM]);pl.rotation.x=Math.PI/2;pl.position.z=sg*(z+q.w/2);pl.castShadow=true;bar.add(pl);
+    if(b.smith){const cg=rbox(.075,.15,.065,.015,M.black,0,-.02,sg*.66,bar);const hk=rbox(.03,.03,.09,.008,M.gold,-.05,.02,sg*.66,bar);hk.rotation.z=.5;
+      const sl=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.045,20),steelM);sl.rotation.x=Math.PI/2;sl.position.z=sg*.66;bar.add(sl);}
+    for(const kg of LOADI.plates){const q={r:PLG[kg][0],w:PLG[kg][1]},fm=plateFaceMat(kg);
+      const pl=new THREE.Mesh(new THREE.CylinderGeometry(q.r,q.r,q.w,48),[plateM,fm,fm]);pl.rotation.x=Math.PI/2;pl.position.z=sg*(z+q.w/2);pl.castShadow=true;bar.add(pl);
       const rr=new THREE.Mesh(new THREE.TorusGeometry(q.r-.004,.005,8,48),plateRim);rr.position.z=sg*(z+q.w+.001);bar.add(rr);
       z+=q.w+.004;
     }
+    if(LOADI.plates.length){const cl=new THREE.Mesh(new THREE.CylinderGeometry(b.r*2.9,b.r*2.9,.035,20),M.gold);cl.rotation.x=Math.PI/2;cl.position.z=sg*(z+.018);bar.add(cl);}
   }
+  setCam&&side&&setCam();
 }
 const trace=new THREE.Group();scene.add(trace);
 function buildTrace(){
   while(trace.children.length){const c=trace.children.pop();c.geometry.dispose();}
-  const pts=[];for(let i=0;i<=40;i++)pts.push(barPos(i/40).add(V(0,0,G.grip+.12)));
+  const pts=[];for(let i=0;i<=40;i++)pts.push(barPos(i/40).add(V(0,0,EXN.eq==='db'?.15:G.grip+.12)));
   for(let i=0;i<40;i+=2){const a=pts[i],b=pts[i+1];const m=new THREE.Mesh(new THREE.CylinderGeometry(.006,.006,1,6),lineM);const d=b.clone().sub(a);m.position.copy(a).add(b).multiplyScalar(.5);m.scale.y=d.length();m.quaternion.setFromUnitVectors(UNIT_Y,d.normalize());trace.add(m);}
   [0,40].forEach(i=>{const s=new THREE.Mesh(new THREE.SphereGeometry(.014,12,10),lineM);s.position.copy(pts[i]);trace.add(s);});
 }
 
+/* ---------- chest-family equipment (built per exercise): adjustable bench, uprights, Smith machine, dumbbells ---------- */
+const eqG=new THREE.Group();rig.add(eqG);
+const dbRoot=new THREE.Group();rig.add(dbRoot);const dbG=[new THREE.Group(),new THREE.Group()];dbRoot.add(dbG[0],dbG[1]);
+function clearG(g){while(g.children.length){const c=g.children.pop();c.traverse(o=>{if(o.geometry)o.geometry.dispose();});}}
+function padAt(g,len,w,th,o,dir,mat){ // pad whose top surface starts at o and runs along dir (in xy)
+  const a=Math.atan2(dir.y,dir.x),nn=V(-dir.y,dir.x,0);const m=rbox(len,th,w,.03,mat||M.leather,0,0,0,g);
+  m.position.copy(o).addScaledVector(dir,len/2).addScaledVector(nn,-th/2);m.rotation.z=a;return m;}
+function strut(g,a,b,r,mat){return cyl(a,b,r||.028,mat||M.alu,g,14);}
+function buildBench(B){ // B:{H,ang,padL,seatL,seatAng,roll:[knee,ankle]}
+  const g=new THREE.Group();eqG.add(g);
+  const u=V(Math.cos(B.ang*D),Math.sin(B.ang*D),0),n=V(-u.y,u.x,0);
+  const sa=(180+B.seatAng)*D,su=V(Math.cos(sa),Math.sin(sa),0); // seat runs from the hinge toward the feet
+  const th=.075;
+  padAt(g,B.padL,.30,th,B.H.clone().addScaledVector(u,.012),u);
+  padAt(g,B.seatL,.32,th,B.H.clone().addScaledVector(su,B.seatL+.012),su.clone().negate());
+  /* steel spine under the back pad + seat rail */
+  const bTop=B.H.clone().addScaledVector(u,B.padL*.86).addScaledVector(n,-th-.03),hin=B.H.clone().addScaledVector(n,-th-.03);
+  rbox(B.padL*.8,.035,.2,.01,M.alu,0,0,0,g).position.copy(B.H).addScaledVector(u,B.padL*.45).addScaledVector(n,-th-.025);g.children[g.children.length-1].rotation.z=B.ang*D;
+  const sFront=B.H.clone().addScaledVector(su,B.seatL*.85).add(V(0,-th-.03,0));
+  /* floor frame (along x) */
+  const x0=Math.min(sFront.x,bTop.x,B.roll?B.roll[1].x:9)-.12,x1=Math.max(sFront.x,bTop.x)+.12;
+  rbox(x1-x0,.05,.09,.015,M.black,(x0+x1)/2,.025,0,g);
+  for(const x of [x0+.04,x1-.04])rbox(.08,.04,.52,.015,M.black,x,.02,0,g);
+  /* hinge post + seat post + back-pad strut */
+  strut(g,V(hin.x,.05,0),hin,.032);
+  strut(g,V(sFront.x,.05,0),sFront,.028);
+  const bMid=B.H.clone().addScaledVector(u,B.padL*.62).addScaledVector(n,-th-.03);
+  if(bMid.y>.12)strut(g,V(bMid.x+(B.ang>0?.12:0),.05,0),bMid,.026);
+  /* PuttClub gold accent + walnut end cap */
+  const capP=B.H.clone().addScaledVector(u,B.padL+.012).addScaledVector(n,-th/2);rbox(.04,.07,.3,.015,M.wood,capP.x,capP.y,0,g).rotation.z=B.ang*D;
+  rbox(.012,.008,.22,.004,M.gold,hin.x,.075,0,g);
+  /* decline leg hold: knee pad + ankle rollers on a post from the seat end */
+  if(B.roll){const [kp,ar]=B.roll;
+    for(const [c,r] of [[kp,.05],[ar,.042]]){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,.46,24),M.leather);m.rotation.x=Math.PI/2;m.position.copy(c);m.castShadow=m.receiveShadow=true;g.add(m);
+      for(const sz of [-1,1]){const e=new THREE.Mesh(new THREE.CylinderGeometry(r*.55,r*.55,.012,16),M.gold);e.rotation.x=Math.PI/2;e.position.copy(c).add(V(0,0,sz*.236));g.add(e);}}
+    strut(g,V(ar.x,.05,0),ar,.026);strut(g,ar,kp,.024);strut(g,kp,sFront,.024);}
+  return g;}
+function buildRack(x,hookY){const g=new THREE.Group();eqG.add(g);const h=hookY+.2;
+  for(const z of [-.56,.56]){rbox(.075,h,.075,.015,M.alu,x,h/2,z,g);rbox(.11,.034,.09,.01,M.gold,x-.055,hookY,z,g);rbox(.11,.034,.09,.01,M.gold,x-.055,hookY-.22,z,g);
+    rbox(.36,.05,.08,.015,M.black,x+.06,.025,z,g);}
+  rbox(.07,.07,1.12,.015,M.white,x+.02,Math.min(.55,h*.45),0,g);return g;}
+function buildSmith(x,lowY){const g=new THREE.Group();eqG.add(g);const RZ=.66,TOP=2.24;
+  for(const z of [-RZ,RZ]){rbox(.1,TOP,.1,.02,M.white,x+.13,TOP/2,z,g);
+    cyl(V(x,.07,z),V(x,TOP-.06,z),.016,M.chrome,g,20);
+    rbox(.17,.035,.06,.01,M.alu,x+.06,.07,z,g);rbox(.17,.035,.06,.01,M.alu,x+.06,TOP-.06,z,g);
+    rbox(.75,.05,.1,.015,M.black,x+.08,.025,z,g);
+    rbox(.06,.05,.07,.012,M.gold,x,lowY,z,g); // safety stop
+    rbox(.02,TOP*.7,.11,.006,M.gold,x+.185,TOP*.5,z,g);}
+  rbox(.14,.12,2*RZ+.12,.02,M.white,x+.13,TOP,0,g);rbox(.1,.05,2*RZ,.015,M.black,x+.13,.05,0,g);
+  badgeQueue.length&&false;return g;}
+/* hex dumbbells: head size from the weight; caps print the weight */
+const DBC={};function dbCapMat(kg){if(DBC[kg])return DBC[kg];
+  const t=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#101312';g.fillRect(0,0,w,h);g.strokeStyle='#c9a45e';g.lineWidth=10;g.beginPath();g.arc(w/2,h/2,w/2-8,0,7);g.stroke();
+    g.fillStyle='#e2c88e';g.textAlign='center';g.textBaseline='middle';g.font='700 '+(String(kg).length>3?64:84)+'px Georgia';g.fillText(String(kg),w/2,h/2-8);g.font='600 30px Georgia';g.fillText('KG',w/2,h/2+56);});
+  return DBC[kg]=new THREE.MeshStandardMaterial({map:t,metalness:.5,roughness:.38});}
+function buildDB(kg){
+  const r=Math.min(.115,.04+.0016*kg),len=Math.max(.032,Math.min(.16,(kg/2*.9)/(6900*2.598*r*r))),hl=.064;
+  dbG.forEach(g=>{clearG(g);
+    const hd=new THREE.Mesh(new THREE.CylinderGeometry(.0165,.0165,hl*2+.01,20),knurlM);hd.rotation.z=Math.PI/2;hd.castShadow=true;g.add(hd);
+    for(const sg of [-1,1]){const c=sg*(hl+len/2+.004);
+      const h=new THREE.Mesh(new THREE.CylinderGeometry(r,r,len,6),M.black);h.rotation.z=Math.PI/2;h.rotation.x=Math.PI/6;h.position.x=c;h.castShadow=true;h.receiveShadow=true;g.add(h);
+      const cl=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.008,20),M.gold);cl.rotation.z=Math.PI/2;cl.position.x=sg*(hl+.002);g.add(cl);
+      const cap=new THREE.Mesh(new THREE.CircleGeometry(r*.78,40),dbCapMat(kg));cap.position.x=sg*(hl+len+.0045);cap.rotation.y=sg*Math.PI/2;g.add(cap);
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(r*.8,.004,8,40),M.gold);ring.position.x=cap.position.x;ring.rotation.y=Math.PI/2;g.add(ring);}
+  });
+  dbRoot.userData.kg=kg;}
+const _x1=V(1,0,0);
+function placeDB(J,o){ // dumbbell in each palm: from the solved wrist/elbow and the palm direction
+  ['L','R'].forEach((sd,i)=>{const j=J[sd],d2=j.wr.clone().sub(j.el).normalize();const pm=o.palm&&(o.palm.isVector3?o.palm:o.palm[sd]);
+    const pv=perp(pm||V(0,1,0),d2),ax=new THREE.Vector3().crossVectors(d2,pv).normalize();
+    const g=dbG[i];g.position.copy(j.wr).addScaledVector(d2,G.wd*.92).addScaledVector(pv,G.px*.9);g.quaternion.setFromUnitVectors(_x1,ax);});}
 /* ---------- human rig ---------- */
 const SBU={uMus:{value:0},uHideHair:{value:0},uLoad:{value:new Float32Array(24)}};
 let LOGO_TEX=null;function logoTex(){if(!LOGO_TEX){LOGO_TEX=new THREE.TextureLoader().load(ASSET.logo);LOGO_TEX.anisotropy=8;}return LOGO_TEX;}
@@ -6759,8 +6898,8 @@ function poseRig(r,T){
     let d1=s.mid.clone().sub(a).normalize(),d2=s.end.clone().sub(s.mid).normalize();
     let h=new THREE.Vector3().crossVectors(d1,d2);if(h.length()<.05)h=left.clone();h.normalize();
     aim(r,B('Thigh'),d1,h);aim(r,B('Calf'),d2,h);
-    const tdir=((T.toeDir&&T.toeDir[side])||fwd).clone().setY(0).normalize();
-    const toe=s.end.clone().add(tdir.multiplyScalar(r.dims.foot*.92));toe.y=Math.min(toe.y,.02);
+    const tdir=((T.toeDir&&T.toeDir[side])||fwd).clone();if(!T.toeFree)tdir.setY(0);tdir.normalize();
+    const toe=s.end.clone().add(tdir.multiplyScalar(r.dims.foot*.92));if(!T.toeFree)toe.y=Math.min(toe.y,.02);
     aim(r,B('Foot'),toe.clone().sub(s.end).normalize(),h);
     // arm
     a=wp('UpperArm');
@@ -6783,24 +6922,75 @@ function poseRig(r,T){
 /* ---------- bench-press motion ---------- */
 let prof=PROF.m,cur=null,G={};
 function geom(){
-  const d=cur.dims;
-  const Py=BENCH_TOP+prof.back;
-  const shX=.30, Px=shX-d.spine;
-  const shY=Py+d.shZ;
-  const grip=d.shW*1.55, wd=.068*prof.scale, px=.026*prof.scale+prof.bar.r;
-  const L=d.uarm+d.farm, dz=grip-d.shW;
-  const topY=shY+Math.sqrt(Math.pow(L*.985,2)-dz*dz)+wd;
-  const botY=Py+prof.chestF+prof.bar.r+.004;
-  G={P:V(Px,Py,0),grip,wd,px,topY,botY,topX:shX-.01,botX:shX-.20*prof.scale};
+  const d=cur.dims,X=EXN,a=X.ang*D,u=V(Math.cos(a),Math.sin(a),0),n=V(-u.y,u.x,0),sc=prof.scale;
+  const back=prof.back,bs=.11*sc;
+  /* pelvis on the pads: flat → on the pad; incline → on the seat, against the back pad (hinge at x=0); decline → hips at the top hinge */
+  let P,H=V(0,X.ang<0?DECL_H:BENCH_TOP,0);
+  if(X.ang===0)P=V(0,BENCH_TOP+back,0);
+  else if(X.ang>0)P=V((Math.cos(a)*bs-back)/Math.sin(a),BENCH_TOP+bs,0);
+  else P=H.clone().addScaledVector(n,back);
+  const S=P.clone().addScaledVector(u,d.spine).addScaledVector(n,d.shZ);
+  const sx=.30-S.x;[P,H,S].forEach(v=>v.x+=sx); // shoulders always under the rack hooks / Smith rails
+  const b=barSpec(),grip=d.shW*(X.grip||1.55),wd=.068*sc,px=.026*sc+(X.eq==='db'?.0165:b.r);
+  const L=d.uarm+d.farm,dz=grip-d.shW;
+  const chest=P.clone().addScaledVector(u,d.spine-(X.touch||.2)*sc).addScaledVector(n,prof.chestF*(X.ang>0?.93:1));
+  const bot=chest.clone().addScaledVector(n,(X.eq==='db'?.0:b.r)+.004);
+  let top;
+  if(X.eq==='smith'){const hx=S.x-bot.x;top=V(bot.x,S.y+Math.sqrt(Math.max(.02,Math.pow(L*.985,2)-dz*dz-hx*hx))+wd,0);}
+  else top=V(S.x-.01,S.y+Math.sqrt(Math.max(.02,Math.pow(L*.985,2)-dz*dz))+wd,0);
+  G={P,H,S,u,n,grip,wd,px,L,top,bot,chest,topX:top.x,topY:top.y,botX:bot.x,botY:bot.y,
+     zT:Math.max(.085,d.shW*.5),zB:X.hand==='neu'?d.shW+.03:d.shW+.12};
+  if(X.eq==='db'&&X.mv==='press'){G.bot=P.clone().addScaledVector(u,d.spine-(X.touch||.2)*sc).addScaledVector(n,prof.chestF*.45);
+    G.top=V(S.x-.01,S.y+Math.sqrt(Math.max(.02,Math.pow(L*.985,2)-Math.pow(d.shW-G.zT,2)))+wd,0);}
+  /* decline leg hold: knees over the pad, ankles under the rollers */
+  if(X.ang<0){const ka=24*D,hip=P.clone().add(V(-.02,-.04,0));G.knee=hip.clone().add(V(-Math.cos(ka),Math.sin(ka),0).multiplyScalar(d.thigh*.97));
+    G.ankle=G.knee.clone().add(V(-.3,-.95,0).normalize().multiplyScalar(d.shin*.96));}
+  /* hair collider + bench spec for buildEquip */
+  G.padL=X.ang>0?.9:X.ang<0?1.0:1.2;
 }
-function barPos(s){return V(lerp(G.topX,G.botX,Math.pow(s,1.35)),lerp(G.topY,G.botY,s),0);}
+function barPos(s){const X=EXN;if(X.eq==='smith')return V(G.botX,lerp(G.topY,G.botY,s),0);
+  if(X.eq==='db'&&X.mv==='fly')return flyWrist(s,1).add(V(0,G.wd,0));
+  if(X.eq==='db')return dbCenter(s,1);
+  return V(lerp(G.topX,G.botX,Math.pow(s,1.35)),lerp(G.topY,G.botY,s),0);}
+function dbCenter(s,sg){const c=V(lerp(G.top.x,G.bot.x,Math.pow(s,1.25)),lerp(G.top.y,G.bot.y,s),0);c.z=sg*lerp(G.zT,G.zB,Math.sin(s*Math.PI/2));return c;}
+const flyPhi=s=>lerp(-.1,86*D,Math.sin(s*Math.PI/2));
+function flyWrist(s,sg){const d=cur.dims,f=flyPhi(s),Ss=G.S.clone().add(V(0,0,sg*d.shW));
+  return Ss.addScaledVector(V(0,1,0),Math.cos(f)*G.L*.955).addScaledVector(V(0,0,sg),Math.sin(f)*G.L*.955).addScaledVector(G.u,-.03*Math.sin(f));}
 function pose(s){
-  const d=cur.dims,bp=barPos(s);
-  const footX=G.P.x-.40*(d.thigh/.4), fz=d.hipW+.17;
-  return {P:G.P.clone(),up:V(1,0,0),fwd:V(0,1,0),
-    feet:{L:V(footX,d.ankleH,fz),R:V(footX,d.ankleH,-fz)},toeDir:{L:V(-1,0,.4),R:V(-1,0,-.4)},kneePole:V(-.6,1,0),kneeOut:.5,
-    hands:{L:bp.clone().add(V(G.px,-G.wd,G.grip)),R:bp.clone().add(V(G.px,-G.wd,-G.grip))},elbowPole:V(-.6,-1,0),elbowOut:.95,palm:V(-1,0,0),wristExt:.12,bar:bp};
+  const d=cur.dims,X=EXN,bp=barPos(s),u=G.u,n=G.n;
+  const o={P:G.P.clone(),up:u.clone(),fwd:n.clone(),bar:bp,wristExt:.12,elbowOut:X.eo,elbowPole:n.clone().negate().addScaledVector(u,-.6)};
+  /* legs */
+  if(X.ang<0){const fz=d.hipW+.03;o.feet={L:G.ankle.clone().setZ(fz),R:G.ankle.clone().setZ(-fz)};o.toeDir={L:V(-.55,-.8,.15),R:V(-.55,-.8,-.15)};o.toeFree=true;o.kneePole=V(-.2,1,0);o.kneeOut=.12;}
+  else{const footX=G.P.x-.40*(d.thigh/.4),fz=d.hipW+.17;o.feet={L:V(footX,d.ankleH,fz),R:V(footX,d.ankleH,-fz)};o.toeDir={L:V(-1,0,.4),R:V(-1,0,-.4)};o.kneePole=V(-.6,1,0);o.kneeOut=.5;}
+  /* hands */
+  if(X.eq!=='db'){o.hands={L:bp.clone().add(V(G.px,-G.wd,G.grip)),R:bp.clone().add(V(G.px,-G.wd,-G.grip))};o.palm=u.clone().negate().setY(0).normalize();}
+  else if(X.mv==='press'){const pro=X.hand!=='neu';o.hands={};o.palm=pro?u.clone().negate().setY(0).normalize():{L:V(0,0,-1),R:V(0,0,1)};
+    for(const [sd,sg] of [['L',1],['R',-1]]){const c=dbCenter(s,sg),pm=pro?o.palm:o.palm[sd];o.hands[sd]=c.add(V(0,-G.wd,0)).addScaledVector(pm,-G.px);}}
+  else{o.hands={};o.palm={};const f=flyPhi(s);o.elbowPole=V(0,-.55,0).addScaledVector(u,-.25);o.wristExt=.04;
+    for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=flyWrist(s,sg);o.palm[sd]=V(0,0,-sg).multiplyScalar(Math.cos(f)).add(V(0,Math.sin(f),0)).normalize();}}
+  return o;
 }
+
+let HENV={bench:{x0:-.51,x1:.75,zw:.15,top:BENCH_TOP}};
+function buildEquip(){
+  const X=EXN;clearG(eqG);
+  benchFlat.visible=X.ang===0;rackFlat.visible=X.eq==='bb'&&X.ang===0;
+  bar.visible=X.eq!=='db';dbRoot.visible=X.eq==='db';
+  if(X.ang!==0){const B={H:G.H,ang:X.ang,padL:G.padL,seatL:X.ang>0?.42:.34,seatAng:X.ang>0?-12:-16};
+    if(X.ang<0)B.roll=[G.knee.clone().add(V(.015,-.085,0)),G.ankle.clone().add(V(-.075,.035,0))];
+    buildBench(B);
+    const u=G.u,n=G.n;HENV={bench:{x0:9,x1:9.1,zw:.01,top:-9},pads:[{o:G.H.toArray(),u:u.toArray(),n:n.toArray(),L:G.padL,zw:.15}]};}
+  else HENV={bench:{x0:-.51,x1:.75,zw:.15,top:BENCH_TOP}};
+  if(X.eq==='bb'&&X.ang!==0){const padEnd=G.H.clone().addScaledVector(G.u,G.padL);buildRack(Math.max(G.S.x+.3,padEnd.x+.1),G.topY-.05);}
+  if(X.eq==='smith')buildSmith(G.botX,G.botY-.07);
+  eqG.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  const lc=document.getElementById('ldc');if(lc)lc.innerHTML=loadText();
+}
+const faN=x=>fa(String(Math.round(x*100)/100)).replace('.','٫');
+function loadText(){const L=LOADI;if(!L)return '';
+  if(L.db!=null)return `<b>${faN(L.db)}</b> کیلو <span>× ۲ دمبل</span>`;
+  const sideTxt=L.plates.length?L.plates.map(faN).join(' + '):'بدون وزنه';
+  return `<b>${faN(L.total)}</b> کیلو <span>${EXN.eq==='smith'?'میلهٔ اسمیت':'میله'} ${faN(L.bar)} · هر طرف ${sideTxt}</span>${L.rem>0?`<em>${faN(L.rem)} کیلو با این وزنه‌ها بسته نمی‌شود</em>`:''}`;}
 
 /* ---------- render remaster: HDR pipeline, AO, contact shadows, probe, adaptive quality (gym_render.js) ---------- */
 /* robust: if the advanced pipeline can't start on this device, fall back to the plain renderer (old look) */
@@ -6820,19 +7010,19 @@ rx.probe.setHide(()=>[bar,trace,cur&&cur.obj].concat(cur&&cur.hair?cur.hair.mesh
 /* ---------- UI ---------- */
 let cinT=0;const focP=V(0,0,0),lookS=V(.15,.82,-.2);
 let playing=true,speed=1,auto=false,side=false,camYaw=0,camR=3.4,camH=1.6,paused=0,t0=performance.now(),rep=0,lastCycle=-1,hl=false,musV=0;
-function setCam(){if(side){camYaw=0;camR=3.2;camH=1.0;}else{camYaw=-34*D;camR=4.7;camH=1.62;}[plateM,plateFaceM].forEach(m=>{m.transparent=side;m.opacity=side?.18:1;m.depthWrite=!side;m.needsUpdate=true;});}
+function setCam(){if(side){camYaw=0;camR=3.2;camH=1.0;}else{camYaw=-34*D;camR=4.7;camH=1.62;}plateMats().forEach(m=>{m.transparent=side;m.opacity=side?.18:1;m.depthWrite=!side;m.needsUpdate=true;});}
 setCam();
 function applyProfile(p){
   prof=PROF[p];
   if(cur){scene.remove(cur.obj);if(cur.hair)cur.hair.meshes.forEach(m=>scene.remove(m));}
   cur=buildRig(p);scene.add(cur.obj);if(cur.hair)cur.hair.meshes.forEach(m=>scene.add(m));tuneEnv();
-  geom();buildBar(prof);buildTrace();rxCasters();
+  LMOD=loadMods(EXN);geom();buildBar();buildEquip();buildTrace();rxCasters();
   document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
-  document.getElementById('prof').innerHTML=`<span>سن ${fa(prof.age)}</span><span>قد ${fa(prof.h)} سانتی‌متر</span><span>وزن ${fa(prof.w)} کیلو</span><span>هالتر ${fa(prof.bar.kg)} کیلویی</span>`;
+  document.getElementById('prof').innerHTML=`<span>سن ${fa(prof.age)}</span><span>قد ${fa(prof.h)} سانتی‌متر</span><span>وزن ${fa(prof.w)} کیلو</span><span>${EXN.eq==='db'?'دمبل '+faN(curLoad())+' کیلویی':(EXN.eq==='smith'?'اسمیت · میله ':'هالتر ')+faN(barSpec().kg)+' کیلویی'}</span>`;
   const x=prof.rx;
   document.getElementById('rx').innerHTML=`<div>ست<b>${x.sets}</b></div><div>تکرار<b>${x.reps}</b></div><div>بار<b>${x.load}</b></div><div>شدت<b>${x.pct}</b></div><div>سختی هدف<b>${x.rpe}</b></div><div>تمپو<b>${x.tempo}</b></div><div style="grid-column:span 3">استراحت بین ست‌ها<b>${x.rest}</b></div>`;
   document.getElementById('guard').classList.toggle('on',!!prof.guard);
-  document.getElementById('repT').textContent=fa(prof.repN);
+  document.getElementById('repT').textContent=fa(REPQ||prof.repN);
   rep=0;lastCycle=-1;t0=performance.now();
 }
 document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>applyProfile(b.dataset.p));
@@ -6851,11 +7041,14 @@ R.domElement.addEventListener('pointerup',()=>drag=null);
 R.domElement.addEventListener('wheel',e=>{e.preventDefault();camR=Math.min(6,Math.max(1.6,camR*(1+Math.sign(e.deltaY)*.08)));},{passive:false});
 function resize(){rx.setSize(stage.clientWidth,stage.clientHeight);}
 addEventListener('resize',resize);
+const PHT={press:['پایین آوردن · دم','مکث روی سینه','فشار · بازدم','قفل بالا · تنفس'],db:['پایین آوردن · دم','مکث در پایین','فشار · بازدم','بالای حرکت · تنفس'],
+  fly:['باز کردن · دم','کشش در پایین','جمع کردن · بازدم','بالای حرکت · تنفس']};
 function phaseOf(el){const [a,b,c,d]=prof.tempo;const T=a+b+c+d;const x=el%T;const cyc=Math.floor(el/T);
-  if(x<a)return{s:ease(x/a),ph:'پایین آوردن · دم',cyc,k:'ecc'};
-  if(x<a+b)return{s:1,ph:'مکث روی سینه',cyc,k:'pause'};
-  if(x<a+b+c)return{s:1-ease((x-a-b)/c),ph:'فشار · بازدم',cyc,k:'con'};
-  return{s:0,ph:'قفل بالا · تنفس',cyc,k:'lock'};}
+  const t=PHT[EXN.mv==='fly'?'fly':EXN.eq==='db'?'db':'press'];
+  if(x<a)return{s:ease(x/a),ph:t[0],cyc,k:'ecc'};
+  if(x<a+b)return{s:1,ph:t[1],cyc,k:'pause'};
+  if(x<a+b+c)return{s:1-ease((x-a-b)/c),ph:t[2],cyc,k:'con'};
+  return{s:0,ph:t[3],cyc,k:'lock'};}
 /* bench-press muscle load model (0..1) per phase and bar depth s (0 top … 1 chest) */
 const LOADT=new Float32Array(24);
 function benchLoads(k,s){
@@ -6864,11 +7057,13 @@ function benchLoads(k,s){
   else if(k==='pause'){Object.assign(L,{deltL:.3,cuff:.42,deltP:.1,pec:.9,deltA:.74,triceps:.5,biceps:.16,forearm:.38,serratus:.3,lats:.36,traps:.2,abs:.3,oblique:.18,glutes:.24,quads:.26,erector:.18});}
   else if(k==='con'){Object.assign(L,{deltL:.26+.12*s,cuff:.36+.12*s,deltP:.1,pec:.72+.28*s,deltA:.58+.3*s,triceps:.6+.4*(1-s),biceps:.12,forearm:.42,serratus:.36+.2*(1-s),lats:.26,traps:.2,abs:.32,oblique:.2,glutes:.3,quads:.32,erector:.2});}
   else Object.assign(L,{cuff:.14,deltL:.1,pec:.12,deltA:.12,triceps:.3,forearm:.3,serratus:.12,abs:.1});
+  for(const n in LMOD)if(L[n]!=null||LMOD[n]>1)L[n]=Math.min(1,(L[n]??.12)*LMOD[n]);
   LOADT.fill(0);for(const n in L)LOADT[SB.MI[n]]=L[n];
 }
 const LEG_ROWS=['pec','deltA','triceps'];
 window.__bp={cur:()=>cur,applyProfile,setS:null,freeze:null,mus:v=>{hl=!!v;document.getElementById('hl').classList.toggle('on',hl);document.getElementById('musLeg').classList.toggle('on',hl);}};let camOverride=null;window.__bp.cam=(p,l)=>{camOverride=p?{p:V(...p),l:V(...l)}:null;};
 let forceS=null;window.__bp.setS=v=>{forceS=v;};
+window.__bp.setEx=(k,kg)=>{if(!EXD[k])return false;EXK=k;EXN=EXD[k];LOADQ=kg>0?kg:null;applyProfile(cur.pk);return {k,load:LOADI};};window.__bp.ex=()=>({k:EXK,load:LOADI,G});
 /* standing pose — used only to render progress-screen figures (window.__bp.stand(true)) */
 let standOn=false,standHips=false,studioOn=false;const BG0=scene.background.clone(),FOG0=scene.fog.density;
 function poseStand(){
@@ -6901,16 +7096,16 @@ function frame(now){
     if(st){rim.userData.c0=rim.color.clone();rim.userData.i0=rim.intensity;amb.userData.i0=amb.intensity;rim.color.set(0xdfe6ff);rim.intensity*=.8;amb.intensity=0;topBox.userData.i0=topBox.intensity;topBox.intensity*=.55;}
     else{rim.color.copy(rim.userData.c0);rim.intensity=rim.userData.i0;amb.intensity=amb.userData.i0;topBox.intensity=topBox.userData.i0;}}}
   if(hl&&now-(window.__legT||0)>120){window.__legT=now;LEG_ROWS.forEach(n=>{const v=Math.round(LD[SB.MI[n]]*100);const el=document.getElementById('ml_'+n);if(el){el.querySelector('i').style.width=v+'%';el.querySelector('b').textContent=fa(v)+'٪';}});}
-  if(f.cyc!==lastCycle){if(lastCycle>=0)rep=rep%prof.repN+1;lastCycle=f.cyc;document.getElementById('rep').textContent=fa(rep);}
+  if(f.cyc!==lastCycle){if(lastCycle>=0)rep=rep%(REPQ||prof.repN)+1;lastCycle=f.cyc;document.getElementById('rep').textContent=fa(rep);}
   document.querySelector('#phase b').textContent=f.ph;
-  const o=standOn?poseStand():pose(f.s);const J=poseRig(cur,o);if(!standOn)bar.position.copy(o.bar);
-  if(cur.hair){cur.obj.updateMatrixWorld(true);cur.hair.step(now,{bench:standOn?{x0:9,x1:9.1,zw:.01,top:-9}:{x0:-.51,x1:.75,zw:.15,top:BENCH_TOP}});cur.hair.meshes.forEach(m=>m.visible=musV<.5);}
+  const o=standOn?poseStand():pose(f.s);const J=poseRig(cur,o);if(!standOn){if(EXN.eq==='db')placeDB(J,o);else bar.position.copy(o.bar);}
+  if(cur.hair){cur.obj.updateMatrixWorld(true);cur.hair.step(now,standOn?{bench:{x0:9,x1:9.1,zw:.01,top:-9}}:HENV);cur.hair.meshes.forEach(m=>m.visible=musV<.5);}
   const ua=J.L.el.clone().sub(J.L.sh),fo=J.L.wr.clone().sub(J.L.el);
   const elbow=180-ua.angleTo(fo)/D, abd=ua.angleTo(o.up.clone().negate())/D;
   document.getElementById('vE').textContent=fa(Math.round(elbow))+'°';document.getElementById('bE').style.strokeDashoffset=113.1*(1-Math.min(1,elbow/180));
   const ok=f.s>.6;document.getElementById('vA').textContent=ok?fa(Math.round(abd))+'°':'—';
   document.getElementById('bA').style.strokeDashoffset=ok?113.1*(1-Math.min(1,abd/90)):113.1;
-  document.getElementById('gA').classList.toggle('ok',ok&&abd>=45&&abd<=72);
+  document.getElementById('gA').classList.toggle('ok',ok&&abd>=EXN.ab[0]&&abd<=EXN.ab[1]);
   /* cinematic camera: longer lens, slow time-based orbit + dolly + crane (parallax), damped framing on chest/bar, DOF */
   const dt=Math.min(.1,(now-(window.__lf||now))/1000);window.__lf=now;
   cinT+=((auto?1:0)-cinT)*(1-Math.exp(-dt*1.4));if(cinT<.0005)cinT=0;
