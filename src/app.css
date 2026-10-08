@@ -22,7 +22,7 @@ svg{display:block}
 
 /* ---------- login ---------- */
 #login{position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;justify-content:flex-end;background:#000;overflow:hidden}
-#login .bg{position:absolute;inset:25% 0 33% 0;background:#000 url(assets/login.webp) center 74%/cover no-repeat;transform:scale(1.06);animation:kb 22s var(--ease) infinite alternate;-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 26%,#000 62%,transparent 100%);mask-image:linear-gradient(180deg,transparent 0%,#000 26%,#000 62%,transparent 100%)}
+#login .bg{position:absolute;inset:25% 0 33% 0;background:#000 url(assets/login.webp) center 50%/cover no-repeat;transform:scale(1.06);animation:kb 22s var(--ease) infinite alternate;-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 26%,#000 62%,transparent 100%);mask-image:linear-gradient(180deg,transparent 0%,#000 26%,#000 62%,transparent 100%)}
 @keyframes kb{to{transform:scale(1.0) translateY(-1.5%)}}
 #login .shade{position:absolute;inset:0;background:radial-gradient(70% 30% at 50% 14%,rgba(233,196,106,.10),transparent 70%),radial-gradient(90% 26% at 50% 50%,rgba(13,53,39,.35),transparent 70%)}
 #login .brand{position:absolute;top:calc(var(--sat) + 5.5vh);inset-inline:0;text-align:center}
@@ -197,7 +197,7 @@ svg{display:block}
 .pf p{margin:0;color:var(--t2);font-size:13px;direction:ltr}
 .chars{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
 .chars button{border-radius:16px;background:var(--card2);padding:8px 0 8px;font-size:11.5px;font-weight:700;color:var(--t2);position:relative;overflow:hidden;transition:box-shadow .2s}
-.chars button img{width:100%;height:96px;object-fit:cover;object-position:50% 8%;display:block}
+.chars button img{width:100%;height:150px;object-fit:cover;object-position:50% 50%;display:block;-webkit-mask-image:linear-gradient(180deg,#000 82%,transparent);mask-image:linear-gradient(180deg,#000 82%,transparent)}
 .chars button.on{box-shadow:inset 0 0 0 2px var(--gold);color:var(--gold2)}
 .tg{width:51px;height:31px;border-radius:99px;background:#39393d;position:relative;transition:background .25s;flex:none}
 .tg::after{content:"";position:absolute;top:2px;right:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.3);transition:transform .25s var(--ease)}
@@ -308,7 +308,7 @@ svg{display:block}
  #login .brand img{width:54px;height:54px}
  .wordmark{font-size:23px;margin-top:8px}
  #login .tag,#login p.sub{display:none}
- #login .bg{inset:23% 0 45% 0}
+ #login .bg{inset:23% 0 45% 0;background-position:center 44%}
  #login h2{font-size:22px}
  #login form{gap:10px;padding-bottom:calc(var(--sab) + 16px)}
  .field input,#login .btn-gold{height:50px}

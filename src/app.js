@@ -3,7 +3,7 @@
    Auth: Supabase (same accounts as the academy panel — password changes / new users apply automatically).
    Data: dedicated database (schema «gym») through the single server gateway rpc/gym_api; device copy + offline queue.
    Access: «اشتراک‌ها ← ماتریس دسترسی ← باشگاه پات کلاب» per plan, enforced on the server and mirrored in the UI. */
-const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.1.0'};
+const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.2.0'};
 /*GEO*/
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const fa=v=>String(v).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
@@ -45,12 +45,15 @@ const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;
 const S={sess:LS.get('pcgym.session',null),prof:LS.get('pcgym.profile',null),srv:LS.get('pcgym.srv',null),boot:null,data:null,tab:'summary',seg:'meas',mi:-1,day:wIdx(new Date()),skin:'fig'};
 function dataKey(){return 'pcgym.data.'+(S.prof?S.prof.user:'_');}
 function loadData(){S.data=Object.assign({v:1,logs:[],meas:[],active:null,start:null,pk:null,set:{sound:true,vib:true}},LS.get(dataKey(),{}));
+  /* دادهٔ نمونه/نمایشی دیگر وجود ندارد؛ باقی‌ماندهٔ نسخه‌های قبلی پاک می‌شود (فقط رکوردهای s=true) */
+  if(S.data.logs.some(l=>l.s)||S.data.meas.some(m=>m.s)){S.data.logs=S.data.logs.filter(l=>!l.s);S.data.meas=S.data.meas.filter(m=>!m.s);S.mi=-1;}
+  delete S.data.sample;delete S.data.seeded;
   if(!S.data.start)S.data.start=weekStart(new Date()).toISOString();saveData();}
 function saveData(){LS.set(dataKey(),S.data);}
 const pk=()=>S.data&&S.data.pk||S.prof&&S.prof.pk||'m';
 const plan=()=>S.srv&&(S.srv.assigned||(S.srv.templates&&S.srv.templates[pk()]))||PLANS[pk()];
-/* access matrix («باشگاه پات کلاب»): absent = on; a parent off hides all its children; demo sees everything */
-const can=id=>{const a=S.prof&&S.prof.acc;if(!a||S.prof.demo)return true;const f=a.feats||{},ps=id.split('.');for(let i=1;i<=ps.length;i++){if(f[ps.slice(0,i).join('.')]===false)return false;}return true;};
+/* access matrix («باشگاه پات کلاب»): absent = on; a parent off hides all its children */
+const can=id=>{const a=S.prof&&S.prof.acc;if(!a)return true;const f=a.feats||{},ps=id.split('.');for(let i=1;i<=ps.length;i++){if(f[ps.slice(0,i).join('.')]===false)return false;}return true;};
 const TABF={summary:'gym.summary',train:'gym.train',progress:'gym.progress'};
 const tabOk=t=>!TABF[t]||can(TABF[t]);
 const lockCard=t=>`<div class="sec"><div class="card locked">${IC.lock.replace('width="12" height="12"','width="22" height="22"')}<b>${t}</b><p>این بخش در اشتراک فعلی شما فعال نیست. برای ارتقا با آکادمی پات‌کلاب تماس بگیرید.</p></div></div>`;
@@ -129,13 +132,12 @@ async function refresh(){if(!S.sess||refreshing)return;refreshing=true;
     applyTabs();if(!$('#push').classList.contains('on'))go(tabOk(S.tab)?S.tab:firstTab());}
   catch(e){if(e.status!==401)SYNC.state='offline';updSync();}
   finally{refreshing=false;}}
-function demo(){S.sess=null;S.prof={user:'demo',name:'مهمان',role:'demo',gender:'مرد',age:40,hcp:12,photo:'',pk:'m',demo:true};LS.set('pcgym.profile',S.prof);}
 function signOut(msg){const t=S.sess&&S.sess.access_token;if(t)api('/auth/v1/logout?scope=local',{method:'POST',token:t}).catch(()=>{});
   S.sess=null;S.prof=null;S.srv=null;LS.del('pcgym.session');LS.del('pcgym.profile');LS.del('pcgym.srv');closePlayer();closePush();showLogin(msg||'');}
 /* cloud sync — waiting for DB approval; kept on device until then */
 const SYNC={state:'idle',last:0,busy:false,
   key(){return 'pcgym.q.'+(S.prof?S.prof.user:'_');},q(){return LS.get(this.key(),[]);},save(q){LS.set(this.key(),q);},
-  add(a,p,noFlush){if(!S.sess||!S.prof||S.prof.demo)return;const q=this.q().filter(o=>!(o.a===a&&p.id&&o.p.id===p.id));q.push({a,p});this.save(q);updSync();if(!noFlush)this.flush();},
+  add(a,p,noFlush){if(!S.sess||!S.prof)return;const q=this.q().filter(o=>!(o.a===a&&p.id&&o.p.id===p.id));q.push({a,p});this.save(q);updSync();if(!noFlush)this.flush();},
   async flush(){if(this.busy||!S.sess||!S.prof)return;this.busy=true;
     try{for(;;){const q=this.q();if(!q.length){this.state='ok';break;}const o=q[0];let r;
       try{r=await rpc(o.a,o.p);}catch(e){this.state=e.status===401?'auth':'offline';break;}
@@ -145,7 +147,7 @@ const SYNC={state:'idle',last:0,busy:false,
       this.last=Date.now();}}
     finally{this.busy=false;updSync();}}};
 function swap(arr,rec){const i=arr.findIndex(x=>x.id===rec.id);if(i>=0)arr[i]=Object.assign({},rec);}
-function syncText(){if(!S.prof||S.prof.demo)return 'حالت نمایشی — داده‌ها فقط روی همین دستگاه می‌مانند.';
+function syncText(){if(!S.prof)return '';
   const n=SYNC.q().length,t=SYNC.last?new Intl.DateTimeFormat('fa-IR',{hour:'2-digit',minute:'2-digit'}).format(new Date(SYNC.last)):'';
   if(n)return `${nf(n)} مورد روی دستگاه منتظر ارسال است${SYNC.state==='offline'?' — با وصل شدن اینترنت خودکار ارسال می‌شود':''}.`;
   if(SYNC.state==='offline')return 'آفلاین — آخرین نسخهٔ ذخیره‌شده نمایش داده می‌شود.';
@@ -155,23 +157,6 @@ function updSync(){const e=$('#syncst');if(e){e.textContent=syncText();e.classLi
 /* ---------- sample data («نمونه») ---------- */
 const BASE={m:{height:181,weight:84.6,neck:41.5,biceps:36.4,forearm:31,chest:103.5,waist:89,hip:101,thigh:58.6,calf:38},f:{height:168,weight:61.2,neck:32,biceps:27,forearm:23.5,chest:88.5,waist:69.5,hip:95.5,thigh:54.5,calf:35},g:{height:158,weight:48.5,neck:30,biceps:23,forearm:21,chest:78,waist:63,hip:86,thigh:48,calf:32},t:{height:155,weight:46.5,neck:31,biceps:23.5,forearm:22,chest:77,waist:64.5,hip:82,thigh:45,calf:31}};
 const TREND={height:0,weight:-.55,neck:-.15,biceps:.25,forearm:.1,chest:.45,waist:-.8,hip:-.3,thigh:.2,calf:.05};
-function genSample(){
-  const P=plan(),k=pk(),logs=[],meas=[],ws=weekStart(new Date()),today=wIdx(new Date());
-  for(let w=6;w>=0;w--)for(const di of Object.keys(P.days).map(Number)){
-    if(w===0&&di>=today)continue;
-    const d=P.days[di],st=new Date(+ws-w*7*DAY+di*DAY+18.5*36e5),f=1-.012*w-(w===4?.01:0);
-    const kg=Math.round(d.kg*f/2.5)*2.5;
-    const sets=Array.from({length:d.sets},(_,i)=>({kg,reps:d.reps-(i===d.sets-1&&w%3===1?1:0),done:true}));
-    logs.push(mkLog({date:st.toISOString(),day:di,ex:d.ex,sets,dur:(d.sets*(d.rest+40))+180,s:1}));
-  }
-  for(let i=4;i>=0;i--){const m={date:new Date(+dayStart(new Date())-i*21*DAY+9*36e5).toISOString(),s:1};
-    MF.forEach(([f])=>{const b=BASE[k][f];m[f]=Math.round((b+TREND[f]*(4-i)*(b>60?1:.6)+(i===2&&f==='weight'?.6:0))*2)/2;});meas.push(m);}
-  return{logs,meas};
-}
-function setSample(on){const D=S.data;D.logs=D.logs.filter(l=>!l.s);D.meas=D.meas.filter(m=>!m.s);
-  if(on){const g=genSample();D.logs=D.logs.concat(g.logs).sort((a,b)=>a.date<b.date?-1:1);D.meas=D.meas.concat(g.meas).sort((a,b)=>a.date<b.date?-1:1);}
-  D.sample=!!on;saveData();S.mi=-1;}
-const hasSample=()=>S.data&&(S.data.logs.some(l=>l.s)||S.data.meas.some(m=>m.s));
 function mkLog(o){const done=o.sets.filter(s=>s.done&&s.kg>0&&s.reps>0);o.vol=done.reduce((a,s)=>a+s.kg*s.reps,0);o.e1rm=done.reduce((a,s)=>Math.max(a,e1(s.kg,s.reps)),0);o.nsets=done.length;o.id=o.id||('L'+Date.parse(o.date).toString(36)+Math.random().toString(36).slice(2,6));return o;}
 
 /* ---------- analytics ---------- */
@@ -250,7 +235,7 @@ function medal(ic,id){const g='md'+id;
 
 /* ---------- common UI ---------- */
 function avatar(){const p=S.prof||{};return p.photo?`<img src="${esc(p.photo)}" alt="">`:esc((p.name||'؟').trim().charAt(0));}
-function header(title){const d=fmtLong.format(new Date());return `<div class="nb">${title}</div><header class="lt"><div class="date">${d}${hasSample()?'<span class="pill-s">دادهٔ نمونه</span>':''}</div><div class="row"><h1>${title}</h1><button class="avatar" data-act="tab" data-t="me" aria-label="پروفایل">${avatar()}</button></div></header>`;}
+function header(title){const d=fmtLong.format(new Date());return `<div class="nb">${title}</div><header class="lt"><div class="date">${d}</div><div class="row"><h1>${title}</h1><button class="avatar" data-act="tab" data-t="me" aria-label="پروفایل">${avatar()}</button></div></header>`;}
 function toast(html,ms=2600){const t=$('#toast');t.innerHTML=html;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),ms);}
 function haptic(ms=12){if(S.data&&S.data.set.vib&&navigator.vibrate)try{navigator.vibrate(ms);}catch(e){}}
 
@@ -421,11 +406,11 @@ function vMe(){
   const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
   return header('من')+`
   <div class="pf"><div class="avatar">${avatar()}</div><h2>${esc(p.name)} ${esc(p.family||'')}</h2><p>@${esc(p.user)}</p>
-   <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">${p.hcp!=null?`<span class="chip">${IC.flag.replace('width="20" height="20"','width="14" height="14"')} هندیکپ ${nf(p.hcp)}</span>`:''}<span class="chip">${p.role==='admin'?'مدیر':p.demo?'حالت نمایشی':'عضو آکادمی'}</span></div></div>
+   <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">${p.hcp!=null?`<span class="chip">${IC.flag.replace('width="20" height="20"','width="14" height="14"')} هندیکپ ${nf(p.hcp)}</span>`:''}<span class="chip">${p.role==='admin'?'مدیر':'عضو آکادمی'}</span></div></div>
   <div class="sec"><h3>کاراکتر من</h3><div class="card"><div class="mc" style="margin:0">بدن سه‌بعدی تو در باشگاه و صفحهٔ پیشرفت — به‌صورت خودکار از جنسیت و سن انتخاب شده است.</div>
-   <div class="chars">${['m','f','t','g'].map(c=>`<button data-act="char" data-c="${c}" class="${c===k?'on':''}"><img src="assets/fig_${c}.webp" alt="" loading="lazy">${CHAR[c].split(' · ')[0]}<br><small style="font-weight:500;opacity:.7">${CHAR[c].split(' · ')[1]}</small></button>`).join('')}</div></div></div>
+   <div class="chars">${['m','f','t','g'].map(c=>`<button data-act="char" data-c="${c}" class="${c===k?'on':''}"><img src="assets/char_${c}.webp" alt="" loading="lazy">${CHAR[c].split(' · ')[0]}<br><small style="font-weight:500;opacity:.7">${CHAR[c].split(' · ')[1]}</small></button>`).join('')}</div></div></div>
   <div class="sec"><h3>مشخصات</h3><div class="list">${p.acc?row('اشتراک',p.acc.staff?'مدیر · دسترسی کامل':esc(PLAN_FA[p.acc.plan]||p.acc.plan||'—')+(p.acc.end?' · تا '+fmtDM.format(new Date(String(p.acc.end).slice(0,10)+'T12:00:00')):'')):''}${row('سن',p.age!=null?nf(p.age)+' سال':'—')}${row('جنسیت',esc(p.gender||'—'))}${row('قد',last&&last.height?nf1(last.height)+' cm':'—')}${row('وزن',last&&last.weight?nf1(last.weight)+' kg':'—')}</div></div>
-  <div class="sec"><h3>تنظیمات</h3><div class="list">${tg('tsound','صدای پایان استراحت',S.data.set.sound)}${tg('tvib','لرزش',S.data.set.vib,'در دستگاه‌های پشتیبانی‌شده')}${tg('tsample','دادهٔ نمونه',hasSample(),'برای دیدن نمودارها؛ با برچسب «نمونه»')}</div></div>
+  <div class="sec"><h3>تنظیمات</h3><div class="list">${tg('tsound','صدای پایان استراحت',S.data.set.sound)}${tg('tvib','لرزش',S.data.set.vib,'در دستگاه‌های پشتیبانی‌شده')}</div></div>
   <div class="sec"><h3>همگام‌سازی</h3><div class="card"><div class="mc sync" id="syncst" style="margin:0;line-height:1.9">${esc(syncText())}</div></div></div>
   ${standalone?'':`<div class="sec"><h3>نصب روی گوشی</h3><div class="card"><div class="mc" style="margin:0;line-height:2">آیفون: در Safari دکمهٔ «اشتراک‌گذاری» ← «Add to Home Screen».<br>اندروید: منوی مرورگر ← «نصب برنامه».</div></div></div>`}
   <div class="sec"><div class="list"><button class="li" style="width:100%" data-act="logout"><div class="tx"><b class="danger">خروج از حساب</b></div></button></div></div>
@@ -540,7 +525,6 @@ const ACT={
  skin:a=>{S.skin=a.dataset.s;$('#figA').style.opacity=S.skin==='fig'?1:0;$('#figB').style.opacity=S.skin==='mus'?1:0;$$('.mtog button').forEach(b=>b.classList.toggle('on',b.dataset.s===S.skin));},
  char:a=>{S.data.pk=a.dataset.c;saveData();SYNC.add('settings_save',{character:a.dataset.c});render('me');toast('کاراکتر تغییر کرد: '+CHAR[a.dataset.c]);},
  tsound:()=>{S.data.set.sound=!S.data.set.sound;saveData();SYNC.add('settings_save',{sound:S.data.set.sound});render('me');},tvib:()=>{S.data.set.vib=!S.data.set.vib;saveData();SYNC.add('settings_save',{vib:S.data.set.vib});render('me');},
- tsample:()=>{setSample(!hasSample());render('me');toast(hasSample()?'دادهٔ نمونه اضافه شد':'دادهٔ نمونه حذف شد');},
  logout:()=>{if(confirm('از حساب خارج می‌شوید؟'))signOut();}};
 document.addEventListener('click',e=>{const a=e.target.closest('[data-act]');if(!a)return;const f=ACT[a.dataset.act];if(f){e.preventDefault();f(a,e);}});
 document.addEventListener('input',setInput);
@@ -550,13 +534,14 @@ addEventListener('resize',()=>{if(S.tab==='progress'&&S.seg==='meas')drawStage()
 
 /* ---------- boot ---------- */
 function showLogin(msg){$('#login').classList.remove('hide');$('#lerr').textContent=msg||'';$('#tabbar').classList.add('off');}
-function enter(){$('#login').classList.add('hide');applyEx();loadData();if(S.prof.demo&&!S.data.seeded){setSample(true);S.data.seeded=true;saveData();}
+function enter(){$('#login').classList.add('hide');applyEx();loadData();
   if(S.boot){mergeServer(S.boot);S.boot=null;lastRefresh=SYNC.last=Date.now();SYNC.state='ok';}else if(S.sess)refresh();
   applyTabs();$('#tabbar').classList.remove('off');go(S.tab);if(S.data.active)setTimeout(()=>toast('جلسهٔ نیمه‌تمام داری — از تب تمرین ادامه بده'),900);}
 $('#lform').addEventListener('submit',async e=>{e.preventDefault();const b=$('#lbtn');b.disabled=true;b.innerHTML='<span class="spin"></span>';$('#lerr').textContent='';
   try{await signIn($('#lu').value,$('#lp').value);enter();}catch(err){$('#lerr').textContent=err.message;}finally{b.disabled=false;b.textContent='ورود';}});
-$('#ldemo').addEventListener('click',()=>{demo();enter();});
-if(S.prof&&(S.sess||S.prof.demo))enter();else showLogin('');
+/* فقط حساب واقعی سایت: پروفایل نمایشیِ قدیمی (نسخه‌های پیشین) پاک می‌شود */
+if(S.prof&&!S.sess){S.prof=null;LS.del('pcgym.profile');}
+if(S.prof&&S.sess)enter();else showLogin('');
 /* live: access-matrix / program / data changes from the academy arrive without re-login */
 addEventListener('online',()=>{SYNC.flush();refresh();});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S.sess&&Date.now()-lastRefresh>60000)refresh();});

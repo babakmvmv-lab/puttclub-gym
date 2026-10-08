@@ -2,7 +2,7 @@
 const V='pcgym-/*V*/';
 const SHELL=['./','index.html','manifest.webmanifest','fonts/vazirmatn-arabic-wght-normal.woff2','fonts/vazirmatn-latin-wght-normal.woff2',
  'assets/login.webp','assets/emblem.webp','icons/icon-192.png',
- ...['m','f','g','t'].flatMap(k=>[`assets/hero_${k}.webp`,`assets/fig_${k}.webp`,`assets/mus_${k}.webp`])];
+ ...['m','f','g','t'].flatMap(k=>[`assets/hero_${k}.webp`,`assets/fig_${k}.webp`,`assets/mus_${k}.webp`,`assets/char_${k}.webp`])];
 const PLAY='pcgym-play-/*PV*/';
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V&&k!==PLAY).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
