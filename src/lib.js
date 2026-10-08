@@ -4,7 +4,7 @@ Object.keys(LIBX).forEach(k=>{EX[k]=Object.assign({},EX[k]||{},LIBX[k]);});
 const KIND=[['free','وزنهٔ آزاد','Free Weights'],['machine','دستگاه','Machines'],['cable','سیم‌کش','Cables'],['body','وزن بدن','Bodyweight']];
 /* «soon»: the professional roadmap per category (shown greyed until its 3D model is built) */
 const CATS=[
- {id:'chest',fa:'سینه',en:'Chest',soon:{machine:['پرس سینه دستگاه','فلای دستگاه (پک‌دک)'],cable:['کراس‌اور سیم‌کش از بالا','کراس‌اور سیم‌کش از پایین','فلای سیم‌کش تک‌دست'],body:['شنا سوئدی','شنا سوئدی شیب منفی','دیپ پارالل — تمرکز سینه']}},
+ {id:'chest',fa:'سینه',en:'Chest',soon:{}},
  {id:'back',fa:'پشت',en:'Back',soon:{free:['ددلیفت هالتر','زیربغل هالتر خم','زیربغل تک‌خم دمبل'],machine:['زیربغل تی‌بار','زیربغل دستگاه نشسته'],cable:['لت پول‌داون','قایقی سیم‌کش','پول‌اوور سیم‌کش ایستاده'],body:['بارفیکس','فیله کمر (هایپراکستنشن)']}},
  {id:'shoulders',fa:'سرشانه',en:'Shoulders',soon:{free:['پرس سرشانه هالتر','پرس سرشانه دمبل','نشر جانب دمبل','نشر خم دمبل'],machine:['پرس سرشانه اسمیت','پرس سرشانه دستگاه'],cable:['نشر جانب سیم‌کش','فیس‌پول'],body:['پایک پوش‌آپ']}},
  {id:'arms',fa:'بازو',en:'Arms',soon:{free:['جلوبازو هالتر','جلوبازو چکشی دمبل','پشت‌بازو خوابیده هالتر','مچ و ساعد هالتر'],machine:['جلوبازو لاری دستگاه','پشت‌بازو دستگاه'],cable:['پشت‌بازو سیم‌کش طنابی','جلوبازو سیم‌کش'],body:['دیپ نیمکت']}},
@@ -30,12 +30,16 @@ const CATI={ /* category tile glyphs */
  core:'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="20" y="10" width="24" height="44" rx="10"/><path d="M32 12v40M21 24h22M21 34h22M22 44h20"/></svg>',
  golf:'<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 54V10l20 8-20 8"/><path d="M10 48c10-4 34-4 44 0" stroke-dasharray="3 4"/><circle cx="46" cy="44" r="3"/></svg>'
 };
-const eqKey=x=>/^db_/.test(x)?'db':/^smith/.test(x)?'smith':'bb';
+const eqKey=x=>/^db_/.test(x)?'db':/^smith/.test(x)?'smith':/^machine_/.test(x)?'stack':/^cable_/.test(x)?'cable':/^(pushup|dip)/.test(x)?'bw':'bb';
 const catEx=c=>Object.keys(EX).filter(k=>EX[k].cat===c&&EX[k].model).sort((a,b)=>(EX[a].sort||0)-(EX[b].sort||0));
 const PLATESET=[20,15,10,5,2.5,1.25],SMITH_BAR=15;
 /* exact plate breakdown for a programmed weight — the 3D player builds the same split */
 function loadInfo(x,kg){
   const q=eqKey(x);if(q==='db')return {q,txt:`دو دمبل ${nf1(kg)} کیلویی`,short:'دمبل'};
+  if(q==='stack'||q==='cable'){const pin=Math.max(1,Math.min(20,Math.floor(kg/5+1e-6))),ad=kg-pin*5>=2.5-1e-6?2.5:0,got=pin*5+ad,two=/cross/.test(x);
+    return {q,short:q==='cable'?'سیم‌کش':'دستگاه',txt:`${two?'هر سیم‌کش · ':''}پین روی ${nf(pin*5)}${ad?' + وزنهٔ کمکی ۲٫۵':''}`+(Math.abs(got-kg)>.01?` (نزدیک‌ترین: ${nf1(got)} کیلو)`:'')};}
+  if(q==='bw'){if(kg<=0)return {q,short:'وزن بدن',txt:'فقط وزن بدن'};let s=kg+1e-6;const pl=[];for(const p of PLATESET)while(s>=p){pl.push(p);s-=p;}
+    return {q,short:'وزن بدن',txt:`وزن بدن + ${pl.map(nf1).join(' + ')} ${/^dip/.test(x)?'با کمربند دیپ':'روی پشت'}`};}
   const bar=q==='smith'?SMITH_BAR:plan().bar,bn=q==='smith'?'میلهٔ اسمیت':'هالتر';
   let s=(kg-bar)/2+1e-6;if(s<=0)return {q,bar,txt:`فقط ${bn} ${nf(bar)} کیلویی`,short:bn};
   const pl=[];for(const p of PLATESET)while(s>=p){pl.push(p);s-=p;}
@@ -45,6 +49,8 @@ function loadInfo(x,kg){
 function defKg(x){
   const P=plan();for(const d of Object.values(P.days||{}))if(d.ex===x&&d.kg)return d.kg;
   const k=pk(),q=eqKey(x),fly=/fly/.test(x);
+  const T8={machine_press:{m:45,f:25,g:15,t:15},machine_fly:{m:35,f:20,g:10,t:10},cable_cross_high:{m:15,f:7.5,g:5,t:5},cable_cross_low:{m:12.5,f:7.5,g:5,t:5},cable_fly_single:{m:12.5,f:7.5,g:5,t:5}};
+  if(q==='bw')return 0;if(T8[x])return T8[x][k]||T8[x].m;
   const T={bb:{m:70,f:35,g:15,t:15},smith:{m:60,f:30,g:15,t:15},db:{m:22.5,f:10,g:6,t:6},fly:{m:14,f:6,g:4,t:4}};
   return T[fly?'fly':q][k]||T[fly?'fly':q].m;
 }
@@ -90,6 +96,6 @@ function sessCtx(){const A=S.data.active;if(!A)return {};const d=plan().days[A.d
 Object.assign(ACT,{
   lbcat:a=>openLib(a.dataset.c),
   lbex:a=>openEx(a.dataset.x),
-  lxk:a=>{LX.kg=Math.max(eqKey(LX.x)==='db'?1:(eqKey(LX.x)==='smith'?SMITH_BAR:plan().bar),Math.min(300,lxStep(LX.kg,eqKey(LX.x),+a.dataset.d)));lxPaint();},
+  lxk:a=>{const q=eqKey(LX.x);LX.kg=Math.max(q==='db'?1:q==='bw'?0:q==='stack'?5:q==='cable'?2.5:(q==='smith'?SMITH_BAR:plan().bar),Math.min(300,lxStep(LX.kg,eqKey(LX.x),+a.dataset.d)));lxPaint();},
   lxplay:()=>{const o={ex:LX.x,kg:LX.kg};closeSheet();openPlayer(o);}
 });

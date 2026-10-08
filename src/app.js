@@ -3,7 +3,7 @@
    Auth: Supabase (same accounts as the academy panel — password changes / new users apply automatically).
    Data: dedicated database (schema «gym») through the single server gateway rpc/gym_api; device copy + offline queue.
    Access: «اشتراک‌ها ← ماتریس دسترسی ← باشگاه پات کلاب» per plan, enforced on the server and mirrored in the UI. */
-const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.7.0'};
+const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.8.0'};
 /*GEO*/
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const fa=v=>String(v).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
