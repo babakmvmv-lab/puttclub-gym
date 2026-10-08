@@ -197,7 +197,9 @@ svg{display:block}
 .pf p{margin:0;color:var(--t2);font-size:13px;direction:ltr}
 .chars{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
 .chars button{border-radius:16px;background:var(--card2);padding:8px 0 8px;font-size:11.5px;font-weight:700;color:var(--t2);position:relative;overflow:hidden;transition:box-shadow .2s}
-.chars button img{width:100%;height:150px;object-fit:cover;object-position:50% 50%;display:block;-webkit-mask-image:linear-gradient(180deg,#000 82%,transparent);mask-image:linear-gradient(180deg,#000 82%,transparent)}
+.chars button img{width:100%;height:172px;object-fit:contain;object-position:50% 100%;display:block;position:relative;filter:drop-shadow(0 6px 10px rgba(0,0,0,.55))}
+.chars button::before{content:"";position:absolute;left:12%;right:12%;top:158px;height:18px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.55),transparent)}
+.chars button.on::before{background:radial-gradient(closest-side,rgba(233,196,106,.45),transparent)}
 .chars button.on{box-shadow:inset 0 0 0 2px var(--gold);color:var(--gold2)}
 .tg{width:51px;height:31px;border-radius:99px;background:#39393d;position:relative;transition:background .25s;flex:none}
 .tg::after{content:"";position:absolute;top:2px;right:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.3);transition:transform .25s var(--ease)}

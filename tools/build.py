@@ -3,6 +3,11 @@
 import os,re,json
 R=os.path.expanduser('~/gym-app')
 sh=open(f'{R}/src/shell.html').read(); css=open(f'{R}/src/app.css').read(); js=open(f'{R}/src/app.js').read()
+# cache-busting: تصویر عوض شود → آدرس عوض می‌شود (کش مرورگر/Pages نسخهٔ قدیمی را نشان ندهد)
+import hashlib as _h
+_fh=lambda *ps:_h.sha1(b''.join(open(f'{R}/'+p,'rb').read() for p in ps)).hexdigest()[:8]
+_lv=_fh('assets/login.webp'); css=css.replace('url(assets/login.webp)',f'url(assets/login.webp?v={_lv})'); sh=sh.replace('href="assets/login.webp"',f'href="assets/login.webp?v={_lv}"')
+assert js.count('/*CV*/')==1; js=js.replace('/*CV*/',_fh(*[f'assets/char_{k}.webp' for k in 'mftg']))
 geo=open(f'{R}/.geo.js').read()
 assert js.count('/*GEO*/')==1; js=js.replace('/*GEO*/',geo)
 # tab icons: reuse the IC table from app.js

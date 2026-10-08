@@ -3,7 +3,7 @@
    Auth: Supabase (same accounts as the academy panel — password changes / new users apply automatically).
    Data: dedicated database (schema «gym») through the single server gateway rpc/gym_api; device copy + offline queue.
    Access: «اشتراک‌ها ← ماتریس دسترسی ← باشگاه پات کلاب» per plan, enforced on the server and mirrored in the UI. */
-const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.2.0'};
+const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.2.1'};
 /*GEO*/
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const fa=v=>String(v).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
@@ -408,7 +408,7 @@ function vMe(){
   <div class="pf"><div class="avatar">${avatar()}</div><h2>${esc(p.name)} ${esc(p.family||'')}</h2><p>@${esc(p.user)}</p>
    <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">${p.hcp!=null?`<span class="chip">${IC.flag.replace('width="20" height="20"','width="14" height="14"')} هندیکپ ${nf(p.hcp)}</span>`:''}<span class="chip">${p.role==='admin'?'مدیر':'عضو آکادمی'}</span></div></div>
   <div class="sec"><h3>کاراکتر من</h3><div class="card"><div class="mc" style="margin:0">بدن سه‌بعدی تو در باشگاه و صفحهٔ پیشرفت — به‌صورت خودکار از جنسیت و سن انتخاب شده است.</div>
-   <div class="chars">${['m','f','t','g'].map(c=>`<button data-act="char" data-c="${c}" class="${c===k?'on':''}"><img src="assets/char_${c}.webp" alt="" loading="lazy">${CHAR[c].split(' · ')[0]}<br><small style="font-weight:500;opacity:.7">${CHAR[c].split(' · ')[1]}</small></button>`).join('')}</div></div></div>
+   <div class="chars">${['m','f','t','g'].map(c=>`<button data-act="char" data-c="${c}" class="${c===k?'on':''}"><img src="assets/char_${c}.webp?v=/*CV*/" alt="" loading="lazy">${CHAR[c].split(' · ')[0]}<br><small style="font-weight:500;opacity:.7">${CHAR[c].split(' · ')[1]}</small></button>`).join('')}</div></div></div>
   <div class="sec"><h3>مشخصات</h3><div class="list">${p.acc?row('اشتراک',p.acc.staff?'مدیر · دسترسی کامل':esc(PLAN_FA[p.acc.plan]||p.acc.plan||'—')+(p.acc.end?' · تا '+fmtDM.format(new Date(String(p.acc.end).slice(0,10)+'T12:00:00')):'')):''}${row('سن',p.age!=null?nf(p.age)+' سال':'—')}${row('جنسیت',esc(p.gender||'—'))}${row('قد',last&&last.height?nf1(last.height)+' cm':'—')}${row('وزن',last&&last.weight?nf1(last.weight)+' kg':'—')}</div></div>
   <div class="sec"><h3>تنظیمات</h3><div class="list">${tg('tsound','صدای پایان استراحت',S.data.set.sound)}${tg('tvib','لرزش',S.data.set.vib,'در دستگاه‌های پشتیبانی‌شده')}</div></div>
   <div class="sec"><h3>همگام‌سازی</h3><div class="card"><div class="mc sync" id="syncst" style="margin:0;line-height:1.9">${esc(syncText())}</div></div></div>
