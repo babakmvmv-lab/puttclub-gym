@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PuttClub Gym</title>
+<meta name="description" content="باشگاه بدنسازی آکادمی گلف پات‌کلاب — برنامه، ثبت تمرین و پیشرفت">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PuttClub Gym">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preload" href="fonts/vazirmatn-arabic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/login.webp" as="image">
+<style>/*CSS*/</style>
+</head>
+<body>
+<div id="app">
+ <section id="login" class="hide">
+  <div class="bg"></div><div class="shade"></div>
+  <div class="brand"><img src="assets/emblem.webp" alt="PuttClub"><div class="wordmark">PUTTCLUB</div><div class="wordsub">GYM</div><div class="tag">باشگاه بدنسازی آکادمی گلف پات‌کلاب</div></div>
+  <form id="lform" autocomplete="on">
+   <h2>خوش آمدید</h2>
+   <p class="sub">با همان نام کاربری و رمز پنل آکادمی وارد شوید.</p>
+   <div class="field"><input id="lu" class="ltr" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="نام کاربری"></div>
+   <div class="field"><input id="lp" class="ltr" name="password" type="password" autocomplete="current-password" placeholder="رمز عبور"></div>
+   <div class="err" id="lerr"></div>
+   <button class="btn-gold" id="lbtn" type="submit">ورود</button>
+   <button class="btn-ghost" id="ldemo" type="button">ورود نمایشی با دادهٔ نمونه</button>
+  </form>
+ </section>
+ <section class="tab" id="t-summary"></section>
+ <section class="tab" id="t-train"></section>
+ <section class="tab" id="t-progress"></section>
+ <section class="tab" id="t-me"></section>
+ <nav id="tabbar" class="off">
+  <button data-act="tab" data-t="summary" class="on">/*IC_sum*/خلاصه</button>
+  <button data-act="tab" data-t="train">/*IC_train*/تمرین</button>
+  <button data-act="tab" data-t="progress">/*IC_prog*/پیشرفت</button>
+  <button data-act="tab" data-t="me">/*IC_me*/من</button>
+ </nav>
+ <div class="push" id="push"></div>
+ <div id="rest" role="timer"><svg width="38" height="38" viewBox="0 0 38 38"><circle cx="19" cy="19" r="15" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="4"/><circle class="ra2" cx="19" cy="19" r="15" fill="none" stroke="var(--r3)" stroke-width="4" stroke-linecap="round" stroke-dasharray="94.25" transform="rotate(-90 19 19)"/></svg><div><div class="lb">استراحت</div><div class="t">۰:۰۰</div></div><button class="s" data-act="rminus">−۱۵</button><button class="s" data-act="rplus">+۱۵</button><button class="s k" data-act="rskip">رد</button></div>
+ <div id="player"></div>
+ <div id="sheet"></div>
+ <div id="toast"></div>
+</div>
+<script>/*JS*/</script>
+</body>
+</html>
