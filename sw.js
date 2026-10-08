@@ -1,7 +1,7 @@
 /* PuttClub Gym service worker (https only). Heavy files live in IndexedDB (app.js «offline package»),
    so the SW never caches assets or the 3D player — it only keeps the latest page for offline start.
    Navigation is network-first with no HTTP cache, so a new release is picked up immediately. */
-const V='pcgym-shell-efa8905f7c';
+const V='pcgym-shell-291f6226a9';
 self.addEventListener('install',e=>{self.skipWaiting();});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',e=>{

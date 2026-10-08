@@ -1,0 +1,1 @@
+MediaPipe files (vision_bundle.mjs, wasm/vision_wasm_internal.*, pose_landmarker_full.task) are published in babakmvmv-lab/puttclub-gym under vendor/mp/ — copy them back from there (not duplicated here).

@@ -5222,13 +5222,14 @@ function hair(sk,O,colliderBones){
   function sim(ch,W,env,dt){
     const {P,Q}=ch,seg=H.len/(n-1)*W.sc;
     const root=ch.rL.clone().applyMatrix4(hb.matrixWorld),dir=ch.dL.clone().transformDirection(hb.matrixWorld);
+    if(env.droop){dir.y-=env.droop;dir.normalize();} // standing studio: the tail leaves the tie heading down the back
     if(!ch.init){for(let i=0;i<n;i++){P[i].copy(root).addScaledVector(dir,Math.min(i,2)*seg).y-=Math.max(0,i-2)*seg;Q[i].copy(P[i]);}ch.init=true;}
     const g2=-9.8*dt*dt;
     for(let i=2;i<n;i++){_m.subVectors(P[i],Q[i]).multiplyScalar(.965);Q[i].copy(P[i]);P[i].add(_m);P[i].y+=g2;}
     P[0].copy(root);P[1].copy(root).addScaledVector(dir,seg);Q[0].copy(P[0]);Q[1].copy(P[1]);
     for(let it=0;it<14;it++){
       for(let i=1;i<n;i++){_m.subVectors(P[i],P[i-1]);const L=_m.length()||1e-6,d=(L-seg)/L;if(i<=1){continue;}P[i].addScaledVector(_m,-d*(i===2?1:.5));if(i>2)P[i-1].addScaledVector(_m,d*.5);}
-      for(let i=2;i<Math.min(n,7);i++){const k=.22*(1-(i-2)/5);_m.subVectors(P[i-1],P[i-2]).add(P[i-1]);P[i].lerp(_m,k);}
+      for(let i=2;i<Math.min(n,7);i++){const k=(env.stiff??.22)*(1-(i-2)/5);_m.subVectors(P[i-1],P[i-2]).add(P[i-1]);P[i].lerp(_m,k);}
       for(let i=2;i<n;i++){const p=P[i],rad=W.pad*(rf(i/(n-1))*.6);
         for(const c of W.cols){_m.subVectors(p,c.p);const L=_m.length(),r=c.r+rad;if(L<r){p.addScaledVector(_m,(r-L)/(L||1e-6));}}
         const B=env.bench;if(B&&p.x>B.x0-rad&&p.x<B.x1+rad&&p.z>-B.zw-rad&&p.z<B.zw+rad&&p.y<B.top+rad&&p.y>B.top-.13){
@@ -6939,6 +6940,7 @@ setTimeout(()=>{if(BODY){try{BV.start();}catch(e){console.error(e);showErr(e.mes
 const BV=(()=>{
 if(!BODY)return null;
 let R0=null,pk=P0,armT=0,armTarget=0,guideK=null,pending=null,busy=false,dirty=true,settleUntil=0,lastPoseKey='';
+const HAIR_ENV={bench:{x0:9,x1:9.1,zw:.01,top:-9},stiff:.08,droop:1.1}; // no bench in the studio
 const post=m=>{try{parent.postMessage(Object.assign({src:'pcbody'},m),'*');}catch(e){}};
 /* ---- studio ---- */
 const studio=new THREE.Group();scene.add(studio);
@@ -7190,10 +7192,11 @@ async function doFit(job){
   tuneEnv();rx.contact.setCasters([R0.obj].concat(R0.hair?R0.hair.meshes:[]));
   if(R0.hair&&R0.hair.reset)R0.hair.reset();
   applyPose();settleUntil=performance.now()+1600;dirty=true;
+  if(R0.hair){try{R0.obj.updateMatrixWorld(true);R0.hair.step(performance.now(),HAIR_ENV);}catch(e){}}
   const model=R0.fit?R0.fit.model:null;if(model)model.kg=R0.fit.targetVol?Math.round(R0.fit.after.vol*(495/((job.m.bf||20)+450))*10)/10:null;
   post({t:'fitted',id:job.id,p:pk,model,ms:Math.round(performance.now()-t0)});
   lastFitKey=job.p+JSON.stringify(job.m||{});
-  if(job.still)prepareStill();else if(guideK)showGuide(guideK);else if(!job.keepView)setView('q');
+  if(job.still)prepareStill();else if(guideK)showGuide(guideK);else if(!job.keepView)setView('q');else{const fa0=frameAll();CT.dist=fa0.dist;CT.tgt.copy(fa0.tgt);}
   busy=false;
   if(pending){const j=pending;pending=null;doFit(j);}
 }
@@ -7216,9 +7219,9 @@ addEventListener('message',onMsg);
 function loop(now){
   requestAnimationFrame(loop);if(!R0)return;
   if(pendingGuide&&armT===armTarget){const f=pendingGuide;pendingGuide=null;f();}
-  if(Math.abs(armT-armTarget)>.002){armT+=(armTarget-armT)*.14;if(Math.abs(armT-armTarget)<.003)armT=armTarget;applyPose();dirty=true;}
+  if(Math.abs(armT-armTarget)>.002){armT+=(armTarget-armT)*.14;if(Math.abs(armT-armTarget)<.003)armT=armTarget;applyPose();dirty=true;settleUntil=Math.max(settleUntil,now+700);}
   if(placeCam())dirty=true;
-  if(now<settleUntil){dirty=true;if(R0.hair){R0.obj.updateMatrixWorld(true);R0.hair.step(now,{bench:{x0:9,x1:9.1,zw:.01,top:-9}});}}
+  if(now<settleUntil){dirty=true;if(R0.hair){R0.obj.updateMatrixWorld(true);R0.hair.step(now,HAIR_ENV);}}
   if(dirty){if(rx.accum)rx.accum.reset();dirty=false;}
   else if(stillReq&&stillReq.armed&&!busy&&!pendingGuide&&now>settleUntil&&(!rx.accum||rx.accum.done)){try{rx.render(now);}catch(e){}capture();return;}
   else if(rx.accum&&rx.accum.done)return;
