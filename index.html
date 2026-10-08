@@ -5526,7 +5526,9 @@ function create(o){
   const mobile=matchMedia('(pointer:coarse)').matches||Math.min(screen.width,screen.height)<500;
   if(mobile)CAP={shadow:2048,msaa:2,ao:.5,res:.85};
   let level=forced!=null?forced:0;
-  let Q=levelState(level);
+  const SAFE={noMsaa:false,noAO:false,noPost:false,broken:'',stage:0,checks:[]};
+  const lvl=n=>{const q=levelState(n);if(SAFE.noMsaa)q.msaa=0;if(SAFE.noAO)q.ao=0;if(SAFE.noPost)q.post=2;return q;};
+  let Q=lvl(level);
   const basePR=Math.min(2,devicePixelRatio||1);
 
   R.toneMapping=THREE.NoToneMapping; // tone mapping happens in the grade pass (HDR → LDR)
@@ -5619,11 +5621,16 @@ function create(o){
 
   /* ---------------- sizing ---------------- */
   let W=4,H=4,pr=basePR;
+  const gl=R.getContext();
+  function fbOK(rt){try{R.setRenderTarget(rt);const st=gl.checkFramebufferStatus(gl.FRAMEBUFFER);R.setRenderTarget(null);return st===gl.FRAMEBUFFER_COMPLETE;}catch(e){R.setRenderTarget(null);return false;}}
   function setSize(w,h){
     W=w;H=h;pr=Math.max(.75,basePR*Q.res);R.setPixelRatio(pr);R.setSize(w,h,false);
     const bw=Math.max(1,Math.round(w*pr)),bh=Math.max(1,Math.round(h*pr));
     if(sceneRT.samples!==(isGL2?Q.msaa:0)){sceneRT.dispose();sceneRT=mk({depthBuffer:true,samples:isGL2?Q.msaa:0});}
     [sceneRT,hdrA,hdrB,ldrA,ldrB].forEach(t=>t.setSize(bw,bh));
+    /* iOS Safari may not support multisampled half-float targets → verify, degrade, or give up (plain renderer) */
+    if(!fbOK(sceneRT)&&sceneRT.samples>0){SAFE.noMsaa=true;Q.msaa=0;sceneRT.dispose();sceneRT=mk({depthBuffer:true,samples:0});sceneRT.setSize(bw,bh);SAFE.checks.push('msaa-fb-incomplete');}
+    if(!fbOK(sceneRT)||!fbOK(hdrA)){SAFE.broken='half-float target unsupported';}
     const as=Q.ao>0?Q.ao:.5;gtao.setSize(Math.max(1,Math.round(bw*as)),Math.max(1,Math.round(bh*as)));
     const bs=Q.post>=2?.35:.5;bloom.setSize(Math.round(bw*bs),Math.round(bh*bs));
     smaa.setSize(bw,bh);
@@ -5634,7 +5641,7 @@ function create(o){
   /* ---------------- apply quality ---------------- */
   function applyQ(){
     const prevShadow=o.key.shadow.mapSize.x;
-    Q=levelState(level);
+    Q=lvl(level);
     if(prevShadow!==Q.shadow){o.key.shadow.mapSize.set(Q.shadow,Q.shadow);if(o.key.shadow.map){o.key.shadow.map.dispose();o.key.shadow.map=null;}}
     finishM.uniforms.sharp.value=Q.post>=2?0:.55;
     (o.rectLights||[]).forEach(l=>l.visible=Q.refl<1);
@@ -5660,7 +5667,22 @@ function create(o){
 
   /* ---------------- per-frame ---------------- */
   let dof={amount:0,focus:3},lastNow=performance.now();
+  let frameNo=0,nextCheck=6;const px4=new Uint8Array(24*24*4);
+  function blackCheck(){
+    const cw=gl.drawingBufferWidth,ch=gl.drawingBufferHeight;let sum=0;
+    try{gl.readPixels((cw>>1)-12,(ch>>1)-12,24,24,gl.RGBA,gl.UNSIGNED_BYTE,px4);}catch(e){return;}
+    for(let i=0;i<px4.length;i+=4)sum+=px4[i]+px4[i+1]+px4[i+2];
+    const avg=sum/(24*24*3);SAFE.checks.push('f'+frameNo+':'+avg.toFixed(1));
+    if(avg>=3)return true;
+    SAFE.stage++;
+    if(SAFE.stage===1){SAFE.noMsaa=true;}
+    else if(SAFE.stage===2){SAFE.noAO=true;SAFE.noPost=true;}
+    else{SAFE.broken='black frame after safe mode';return false;}
+    applyQ();nextCheck=frameNo+8;return false;
+  }
   function render(now){
+    if(SAFE.broken)throw new Error('RX: '+SAFE.broken);
+    frameNo++;
     const dt=now-lastNow;lastNow=now;adapt(now,dt);
     CS.render();
     // 1. scene → HDR MSAA
@@ -5686,7 +5708,17 @@ function create(o){
     // 7. finish → screen
     finishM.uniforms.tLDR.value=ldrB.texture;finishM.uniforms.time.value=now*.001;
     R.setRenderTarget(null);quad.material=finishM;quad.render(R);
+    if(frameNo===nextCheck){if(blackCheck()&&nextCheck<40)nextCheck=40;}
+    if(dbg&&frameNo%30===0)dbgDraw();
   }
+  /* ?debug=1 → small diagnostics overlay (renderer, extensions, quality, self-test results) */
+  const dbg=qs.has('debug')?document.createElement('pre'):null;
+  if(dbg){dbg.style.cssText='position:fixed;left:6px;bottom:6px;z-index:99;max-width:94vw;white-space:pre-wrap;font:10px/1.35 monospace;color:#9ff;background:rgba(0,0,0,.72);padding:6px 8px;border-radius:8px;pointer-events:none;direction:ltr;text-align:left';document.body.appendChild(dbg);}
+  function dbgDraw(){const ri=gl.getExtension('WEBGL_debug_renderer_info');
+    dbg.textContent=['webgl2:'+isGL2+'  gpu:'+(ri?gl.getParameter(ri.UNMASKED_RENDERER_WEBGL):'?'),
+      'cbf:'+!!gl.getExtension('EXT_color_buffer_float')+' cbhf:'+!!gl.getExtension('EXT_color_buffer_half_float')+' maxSamples:'+(isGL2?gl.getParameter(gl.MAX_SAMPLES):0),
+      'level:'+level+' fps:'+Math.round(AQ.fps)+' pr:'+pr.toFixed(2)+' '+JSON.stringify(Q),
+      'safe:'+JSON.stringify({m:SAFE.noMsaa,a:SAFE.noAO,p:SAFE.noPost,b:SAFE.broken}),'checks:'+SAFE.checks.slice(-6).join(' ')].join('\n');}
   const copyM=new THREE.ShaderMaterial({vertexShader:FSV,fragmentShader:'uniform sampler2D t;varying vec2 vUv;void main(){gl_FragColor=texture2D(t,vUv);}',uniforms:{t:{value:null}},depthTest:false,depthWrite:false});
 
   R.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();level=Math.max(level,8);},false);
@@ -5695,7 +5727,8 @@ function create(o){
   const api={render,setSize,contact:CS,probe:PR,gtao,bloom,grade:gradeM.uniforms,finish:finishM.uniforms,
     setDof(amount,focus){dof.amount=amount;dof.focus=focus;},
     get level(){return level;},set level(n){level=Math.max(0,Math.min(STEPS.length,n));applyQ();},
-    stats:()=>({level,fps:Math.round(AQ.fps),Q:Object.assign({},Q),pr:+pr.toFixed(2)})};
+    stats:()=>({level,fps:Math.round(AQ.fps),Q:Object.assign({},Q),pr:+pr.toFixed(2),safe:Object.assign({},SAFE,{checks:SAFE.checks.slice(-6)})})};
+  if(SAFE.broken)throw new Error('RX: '+SAFE.broken);
   window.__rx=api;
   return api;
 }
@@ -6255,9 +6288,10 @@ function pose(s){
 /* ---------- render remaster: HDR pipeline, AO, contact shadows, probe, adaptive quality (gym_render.js) ---------- */
 /* robust: if the advanced pipeline can't start on this device, fall back to the plain renderer (old look) */
 function plainRX(){R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.05;
+  if(/[?&]debug\b/.test(location.search))setTimeout(()=>{const d=document.createElement('pre');d.style.cssText='position:fixed;left:6px;bottom:6px;z-index:99;font:10px monospace;color:#ff9;background:rgba(0,0,0,.7);padding:6px;border-radius:8px;direction:ltr;pointer-events:none';d.textContent='PLAIN renderer · '+(window.__rxErr||'init/lite');document.body.appendChild(d);},500);
   return {plain:true,render(){R.setRenderTarget(null);R.render(scene,cam);},setSize(w,h){R.setPixelRatio(Math.min(2,devicePixelRatio));R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();},
     setDof(){},contact:{setCasters(){},render(){}},probe:{capture(){},setHide(){}}};}
-let rx;try{rx=RX.create({R,scene,cam,stage,key,rectLights:[topBox,fillBox],
+let rx;try{if(/[?&]lite\b/.test(location.search))throw new Error('lite mode');rx=RX.create({R,scene,cam,stage,key,rectLights:[topBox,fillBox],
   prepassHide:o=>(o.isSkinnedMesh&&o.userData.sb&&musV>.5)||(cur&&cur.hair&&cur.hair.meshes.includes(o)),
   cards:[[1.0,1.0,0xffd8a0,7,key.position.clone(),key.target.position.clone()],[.9,.9,0x7fe6c8,3.5,rim.position.clone(),rim.target.position.clone()],
          [1.5,.5,0xfff0dc,5,topBox.position.clone(),V(.12,0,0)],[1.8,1.2,0xd8e4ff,1.2,fillBox.position.clone(),V(.2,.65,0)]],
@@ -6350,7 +6384,7 @@ function frame(now){
   if(camOverride){cam.position.copy(camOverride.p);cam.lookAt(camOverride.l);}
   rx.setDof(cinT*(camOverride?0:1),cam.position.distanceTo(focP));
   dust.rotation.y=Math.sin(now*.00005)*.05;
-  try{rx.render(now);}catch(e){console.error('RX render',e);if(!rx.plain){const w=stage.clientWidth,h=stage.clientHeight;rx=plainRX();rx.setSize(w,h);rx.render(now);}}
+  try{rx.render(now);}catch(e){console.error('RX render',e);window.__rxErr=String(e&&e.message||e);if(!rx.plain){const w=stage.clientWidth,h=stage.clientHeight;rx=plainRX();rx.setSize(w,h);rx.render(now);}}
 }
 resize();
 function showErr(m){const l=document.getElementById('loading');if(l){l.style.fontSize='12px';l.style.padding='24px';l.style.textAlign='center';l.textContent='خطا در اجرای صحنه: '+m;}}
