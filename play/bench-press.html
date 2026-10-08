@@ -6410,6 +6410,8 @@ document.getElementById('path').onclick=function(){trace.visible=!trace.visible;
 document.getElementById('view').onclick=function(){side=!side;this.classList.toggle('on',side);setCam();};
 document.getElementById('cam').onclick=function(){auto=!auto;this.classList.toggle('on',auto);};
 document.getElementById('hl').onclick=function(){hl=!hl;this.classList.toggle('on',hl);document.getElementById('musLeg').classList.toggle('on',hl);};
+/* ?mus=0 → نمای آناتومی عضلات در اشتراک این عضو خاموش است (ماتریس دسترسی «باشگاه پات کلاب») */
+if(QP.get('mus')==='0'){const b=document.getElementById('hl');if(b)b.style.display='none';}
 let drag=null;
 R.domElement.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,yaw:camYaw,h:camH};R.domElement.setPointerCapture(e.pointerId);});
 R.domElement.addEventListener('pointermove',e=>{if(!drag)return;camYaw=drag.yaw-(e.clientX-drag.x)*.008;camH=Math.min(3,Math.max(.4,drag.h+(e.clientY-drag.y)*.006));});

@@ -314,3 +314,11 @@ svg{display:block}
  .field input,#login .btn-gold{height:50px}
  .lt h1{font-size:30px}
 }
+/* access matrix lock + live sync status */
+.card.locked{text-align:center;padding:30px 20px;background:linear-gradient(160deg,rgba(233,196,106,.09),rgba(255,255,255,.03) 55%),var(--card);border:1px solid rgba(233,196,106,.16)}
+.card.locked svg{display:block;margin:0 auto 12px;color:var(--gold)}
+.card.locked b{font-size:17px}
+.card.locked p{color:var(--t2);font-size:13px;line-height:1.9;margin:6px 0 0}
+.mc.sync{display:flex;gap:8px;align-items:center}
+.mc.sync::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:#3ddc84;box-shadow:0 0 10px rgba(61,220,132,.6)}
+.mc.sync.warn::before{background:var(--gold);box-shadow:0 0 10px rgba(233,196,106,.55)}

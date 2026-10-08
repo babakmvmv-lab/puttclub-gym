@@ -1,7 +1,9 @@
 'use strict';
 /* PuttClub Gym — web app shell (Apple Fitness–style, Persian RTL)
-   Auth: Supabase (same accounts as the academy panel). Training data: on-device for now (cloud sync after DB approval). */
-const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.0.0'};
+   Auth: Supabase (same accounts as the academy panel — password changes / new users apply automatically).
+   Data: dedicated database (schema «gym») through the single server gateway rpc/gym_api; device copy + offline queue.
+   Access: «اشتراک‌ها ← ماتریس دسترسی ← باشگاه پات کلاب» per plan, enforced on the server and mirrored in the UI. */
+const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.1.0'};
 /*GEO*/
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const fa=v=>String(v).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
@@ -40,13 +42,18 @@ const MF=[['height','قد','cm'],['weight','وزن','kg'],['neck','گردن','cm
 
 /* ---------- storage ---------- */
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}},del(k){try{localStorage.removeItem(k);}catch(e){}}};
-const S={sess:LS.get('pcgym.session',null),prof:LS.get('pcgym.profile',null),data:null,tab:'summary',seg:'meas',mi:-1,day:wIdx(new Date()),skin:'fig'};
+const S={sess:LS.get('pcgym.session',null),prof:LS.get('pcgym.profile',null),srv:LS.get('pcgym.srv',null),boot:null,data:null,tab:'summary',seg:'meas',mi:-1,day:wIdx(new Date()),skin:'fig'};
 function dataKey(){return 'pcgym.data.'+(S.prof?S.prof.user:'_');}
 function loadData(){S.data=Object.assign({v:1,logs:[],meas:[],active:null,start:null,pk:null,set:{sound:true,vib:true}},LS.get(dataKey(),{}));
   if(!S.data.start)S.data.start=weekStart(new Date()).toISOString();saveData();}
 function saveData(){LS.set(dataKey(),S.data);}
 const pk=()=>S.data&&S.data.pk||S.prof&&S.prof.pk||'m';
-const plan=()=>PLANS[pk()];
+const plan=()=>S.srv&&(S.srv.assigned||(S.srv.templates&&S.srv.templates[pk()]))||PLANS[pk()];
+/* access matrix («باشگاه پات کلاب»): absent = on; a parent off hides all its children; demo sees everything */
+const can=id=>{const a=S.prof&&S.prof.acc;if(!a||S.prof.demo)return true;const f=a.feats||{},ps=id.split('.');for(let i=1;i<=ps.length;i++){if(f[ps.slice(0,i).join('.')]===false)return false;}return true;};
+const TABF={summary:'gym.summary',train:'gym.train',progress:'gym.progress'};
+const tabOk=t=>!TABF[t]||can(TABF[t]);
+const lockCard=t=>`<div class="sec"><div class="card locked">${IC.lock.replace('width="12" height="12"','width="22" height="22"')}<b>${t}</b><p>این بخش در اشتراک فعلی شما فعال نیست. برای ارتقا با آکادمی پات‌کلاب تماس بگیرید.</p></div></div>`;
 
 /* ---------- auth (Supabase GoTrue + RLS: member reads only their own account) ---------- */
 async function api(path,{method='GET',body,token}={}){
@@ -74,21 +81,76 @@ async function signIn(user,pass){
   try{raw=await api('/auth/v1/token?grant_type=password',{method:'POST',body:{email:u.includes('@')?u:u+'@'+CFG.domain,password:String(pass)}});}
   catch(e){if(/banned/i.test(e.message))throw new Error('این حساب غیرفعال است.');if(e.status===400||e.status===401)throw new Error('نام کاربری یا رمز عبور اشتباه است.');throw new Error('اتصال به سرور برقرار نشد؛ اینترنت را بررسی کنید.');}
   const sess=norm(raw);
-  const rows=await api('/rest/v1/ga_accounts?select=legacy_id,username,name,role,active,pid&user_id=eq.'+encodeURIComponent(sess.uid),{token:sess.access_token});
-  const acc=rows&&rows[0];
-  if(!acc){api('/auth/v1/logout?scope=local',{method:'POST',token:sess.access_token}).catch(()=>{});throw new Error('این حساب در آکادمی تعریف نشده است؛ با مدیر تماس بگیرید.');}
-  if(acc.active===false)throw new Error('این حساب غیرفعال است.');
-  let pl=null;
-  if(acc.pid!=null){try{const r=await api('/rest/v1/ga_store?k=eq.ga_players&select='+encodeURIComponent('p:v->"'+acc.pid+'"'),{token:sess.access_token});pl=r&&r[0]&&r[0].p;}catch(e){}}
-  const age=ageOf(pl&&pl.birth);
-  S.sess=sess;S.prof={user:acc.username,name:(pl&&pl.name)||acc.name||acc.username,family:pl&&pl.family||'',role:acc.role,gender:pl&&pl.gender||'',age,hcp:pl&&pl.hcp!=null&&pl.hcp!==''?pl.hcp:null,photo:pl&&pl.photo||'',pk:pkFor(pl&&pl.gender,age)};
-  LS.set('pcgym.session',S.sess);LS.set('pcgym.profile',S.prof);
+  let j;
+  try{j=await rpc('bootstrap',{},sess.access_token);}
+  catch(e){api('/auth/v1/logout?scope=local',{method:'POST',token:sess.access_token}).catch(()=>{});throw new Error('اتصال به سرور برقرار نشد؛ اینترنت را بررسی کنید.');}
+  const err=applyBoot(j);
+  if(err){api('/auth/v1/logout?scope=local',{method:'POST',token:sess.access_token}).catch(()=>{});S.prof=null;S.srv=null;throw new Error(err);}
+  S.sess=sess;S.boot=j;
+  LS.set('pcgym.session',S.sess);LS.set('pcgym.profile',S.prof);LS.set('pcgym.srv',S.srv);
 }
+/* ---------- gym database (schema «gym» via rpc/gym_api) ---------- */
+const REASON={no_account:'این حساب در آکادمی تعریف نشده است؛ با مدیر تماس بگیرید.',inactive:'این حساب غیرفعال است.',
+  expired:'اشتراک شما در آکادمی به پایان رسیده است؛ برای تمدید با آکادمی تماس بگیرید.',no_subscription:'برای این حساب اشتراک فعالی ثبت نشده است؛ با آکادمی تماس بگیرید.',
+  scheduled:'اشتراک شما هنوز شروع نشده است.',past_due:'اشتراک شما در انتظار پرداخت است.'};
+const PLAN_FA={trial:'آزمایشی',starter:'Starter',professional:'Professional',business:'Business',enterprise:'Enterprise'};
+async function rpc(action,payload,tok){tok=tok||await token();if(!tok){const e=new Error('auth');e.status=401;throw e;}
+  return api('/rest/v1/rpc/gym_api',{method:'POST',token:tok,body:{p_action:action,p_payload:payload||{}}});}
+function applyBoot(j){
+  const a=(j&&j.access)||{};
+  if(!a.allowed)return REASON[a.reason]||'دسترسی به باشگاه ممکن نیست؛ با آکادمی تماس بگیرید.';
+  if(!(a.feats&&a.feats.gym))return `باشگاه پات کلاب در اشتراک «${PLAN_FA[a.plan]||a.plan||'فعلی'}» شما فعال نیست؛ برای ارتقا با آکادمی تماس بگیرید.`;
+  const p=j.profile||{},age=ageOf(p.birth);
+  S.prof={user:p.username,name:p.name||p.username,family:p.family||'',role:p.role,gender:p.gender||'',age,hcp:p.hcp!=null&&p.hcp!==''?p.hcp:null,photo:p.photo||'',pk:pkFor(p.gender,age),acc:a};
+  S.srv={assigned:j.assigned||null,templates:j.templates||{},exercises:j.exercises||{},at:Date.now()};
+  applyEx();return '';
+}
+function applyEx(){const x=S.srv&&S.srv.exercises;if(x)Object.keys(x).forEach(k=>{EX[k]=Object.assign({},EX[k]||{},x[k]);});}
+const mid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+/* server = source of truth; device keeps sample data («نمونه») and anything still waiting in the queue */
+function mergeServer(j){const D=S.data;if(!D||!j)return;const q=SYNC.q();
+  const pend=new Set(q.filter(o=>/_save$/.test(o.a)).map(o=>o.p.id)),del=new Set(q.filter(o=>/_delete$/.test(o.a)).map(o=>o.p.id));
+  if(!LS.get('pcgym.mig.'+S.prof.user,false)){ /* one-time upload of training logged on this device before the database existed */
+    const sw=new Set((j.workouts||[]).map(w=>w.id)),sm=new Set((j.meas||[]).map(m=>m.id));
+    D.logs.filter(l=>!l.s&&!sw.has(l.id)).forEach(l=>{SYNC.add('workout_save',wPayload(l),true);pend.add(l.id);});
+    D.meas.filter(m=>!m.s).forEach(m=>{if(!m.id)m.id='M'+Date.parse(m.date).toString(36);if(!sm.has(m.id)){SYNC.add('meas_save',m,true);pend.add(m.id);}});
+    LS.set('pcgym.mig.'+S.prof.user,true);}
+  const by=(a,b)=>a.date<b.date?-1:1;
+  D.logs=(j.workouts||[]).filter(w=>!pend.has(w.id)).concat(D.logs.filter(l=>l.s||pend.has(l.id))).filter(l=>!del.has(l.id)).sort(by);
+  D.meas=(j.meas||[]).filter(m=>!pend.has(m.id)).concat(D.meas.filter(m=>m.s||pend.has(m.id))).filter(m=>!del.has(m.id)).sort(by);
+  const st=j.settings||{};if(st.sound!=null)D.set.sound=!!st.sound;if(st.vib!=null)D.set.vib=!!st.vib;if(st.character)D.pk=st.character;
+  if(S.mi>=D.meas.length)S.mi=-1;saveData();SYNC.flush();}
+const wPayload=l=>({id:l.id,date:l.date,day:l.day,ex:l.ex,dur:l.dur||0,sets:l.sets,pid:l.pid||null});
+let refreshing=false,lastRefresh=0;
+async function refresh(){if(!S.sess||refreshing)return;refreshing=true;
+  try{const j=await rpc('bootstrap');const err=applyBoot(j);
+    if(err){if(S.data&&S.data.active)saveData();signOut(err);return;}
+    LS.set('pcgym.profile',S.prof);LS.set('pcgym.srv',S.srv);mergeServer(j);lastRefresh=Date.now();SYNC.state=SYNC.q().length?SYNC.state:'ok';SYNC.last=Date.now();
+    applyTabs();if(!$('#push').classList.contains('on'))go(tabOk(S.tab)?S.tab:firstTab());}
+  catch(e){if(e.status!==401)SYNC.state='offline';updSync();}
+  finally{refreshing=false;}}
 function demo(){S.sess=null;S.prof={user:'demo',name:'مهمان',role:'demo',gender:'مرد',age:40,hcp:12,photo:'',pk:'m',demo:true};LS.set('pcgym.profile',S.prof);}
 function signOut(msg){const t=S.sess&&S.sess.access_token;if(t)api('/auth/v1/logout?scope=local',{method:'POST',token:t}).catch(()=>{});
-  S.sess=null;S.prof=null;LS.del('pcgym.session');LS.del('pcgym.profile');closePlayer();closePush();showLogin(msg||'');}
+  S.sess=null;S.prof=null;S.srv=null;LS.del('pcgym.session');LS.del('pcgym.profile');LS.del('pcgym.srv');closePlayer();closePush();showLogin(msg||'');}
 /* cloud sync — waiting for DB approval; kept on device until then */
-const SYNC={state:'local',push(){/* intentionally a no-op until the gym tables are approved */}};
+const SYNC={state:'idle',last:0,busy:false,
+  key(){return 'pcgym.q.'+(S.prof?S.prof.user:'_');},q(){return LS.get(this.key(),[]);},save(q){LS.set(this.key(),q);},
+  add(a,p,noFlush){if(!S.sess||!S.prof||S.prof.demo)return;const q=this.q().filter(o=>!(o.a===a&&p.id&&o.p.id===p.id));q.push({a,p});this.save(q);updSync();if(!noFlush)this.flush();},
+  async flush(){if(this.busy||!S.sess||!S.prof)return;this.busy=true;
+    try{for(;;){const q=this.q();if(!q.length){this.state='ok';break;}const o=q[0];let r;
+      try{r=await rpc(o.a,o.p);}catch(e){this.state=e.status===401?'auth':'offline';break;}
+      if(r&&r.ok){if(r.workout)swap(S.data.logs,r.workout);if(r.meas)swap(S.data.meas,r.meas);if(r.workout||r.meas)saveData();}
+      else if(r&&r.err==='feature_off')toast('این بخش در اشتراک شما فعال نیست؛ ذخیره در دیتابیس انجام نشد.',3600);
+      const q2=this.q(),k=JSON.stringify(o),i=q2.findIndex(x=>JSON.stringify(x)===k);if(i>=0){q2.splice(i,1);this.save(q2);}
+      this.last=Date.now();}}
+    finally{this.busy=false;updSync();}}};
+function swap(arr,rec){const i=arr.findIndex(x=>x.id===rec.id);if(i>=0)arr[i]=Object.assign({},rec);}
+function syncText(){if(!S.prof||S.prof.demo)return 'حالت نمایشی — داده‌ها فقط روی همین دستگاه می‌مانند.';
+  const n=SYNC.q().length,t=SYNC.last?new Intl.DateTimeFormat('fa-IR',{hour:'2-digit',minute:'2-digit'}).format(new Date(SYNC.last)):'';
+  if(n)return `${nf(n)} مورد روی دستگاه منتظر ارسال است${SYNC.state==='offline'?' — با وصل شدن اینترنت خودکار ارسال می‌شود':''}.`;
+  if(SYNC.state==='offline')return 'آفلاین — آخرین نسخهٔ ذخیره‌شده نمایش داده می‌شود.';
+  return 'همگام با دیتابیس باشگاه پات کلاب'+(t?` · آخرین همگام‌سازی ${t}`:'')+'.';}
+function updSync(){const e=$('#syncst');if(e){e.textContent=syncText();e.classList.toggle('warn',!!SYNC.q().length||SYNC.state==='offline');}}
 
 /* ---------- sample data («نمونه») ---------- */
 const BASE={m:{height:181,weight:84.6,neck:41.5,biceps:36.4,forearm:31,chest:103.5,waist:89,hip:101,thigh:58.6,calf:38},f:{height:168,weight:61.2,neck:32,biceps:27,forearm:23.5,chest:88.5,waist:69.5,hip:95.5,thigh:54.5,calf:35},g:{height:158,weight:48.5,neck:30,biceps:23,forearm:21,chest:78,waist:63,hip:86,thigh:48,calf:32},t:{height:155,weight:46.5,neck:31,biceps:23.5,forearm:22,chest:77,waist:64.5,hip:82,thigh:45,calf:31}};
@@ -210,22 +272,25 @@ function vSummary(){
   if(vols[4]&&vols[3])trends.push({ic:vols[4]>=vols[3]?'up':'down',c:vols[4]>=vols[3]?'c2':'cn',t:'حجم هفتهٔ گذشته',v:nf(vols[4])+' kg'});
   if(lastM&&prevM){[['weight','وزن بدن','kg'],['waist','دور کمر','cm']].forEach(([f,t,u])=>{if(lastM[f]!=null&&prevM[f]!=null)trends.push({ic:lastM[f]<=prevM[f]?'down':'up',c:lastM[f]<=prevM[f]?'c3':'cu',t,v:nf1(lastM[f])+' '+u});});}
   const aw=awards();
-  return header('خلاصه')+`
+  const sec=[];
+  if(can('gym.summary.rings'))sec.push(`
   <div class="sec" style="margin-top:8px"><div class="card tap act" data-act="tab" data-t="train">
     ${rings([pw.sets?sets/pw.sets:0,pw.vol?vol/pw.vol:0,rec/100],136)}
     <div class="stats">
       <div><b>تمرین</b><span class="c1 num">${nf(sets)}/${nf(pw.sets)}<small>ست</small></span></div>
       <div><b>حجم</b><span class="c2 num">${nf(vol)}/${nf(pw.vol)}<small>kg</small></span></div>
       <div><b>ریکاوری</b><span class="c3 num">${nf(rec)}<small>٪</small></span></div>
-    </div></div></div>
+    </div></div></div>`);
+  if(can('gym.summary.next'))sec.push(`
   <div class="sec"><h3>${ns.today?'تمرین امروز':'جلسهٔ بعدی'}<small>${esc(P.name)}</small></h3>
    <div class="hero" data-act="session" data-d="${ns.di}">
     <img src="assets/hero_${k}.webp" alt="" fetchpriority="high">
     <div class="gr"></div>
-    <div class="top"><span class="chip gold">${ns.when}</span><button class="chip" data-act="player" aria-label="نمایش سه‌بعدی">${IC.cube}سه‌بعدی</button></div>
+    <div class="top"><span class="chip gold">${ns.when}</span>${can('gym.player.form')?`<button class="chip" data-act="player" aria-label="نمایش سه‌بعدی">${IC.cube}سه‌بعدی</button>`:''}</div>
     <div class="bt"><div><div class="k">روز ${esc(d.t)} · PuttClub Gym</div><h4>${ex.name}</h4><p class="num">${nf(d.sets)} ست × ${nf(d.reps)} تکرار · ${nf1(d.kg)} کیلوگرم · RPE ${d.rpe}</p></div>
      <span class="play">${IC.play}</span></div>
-   </div></div>
+   </div></div>`);
+  if(can('gym.summary.metrics'))sec.push(`
   <div class="sec"><h3>معیارها</h3><div class="grid2">
    <div class="card"><div class="mt c1">جلسات هفته</div><div class="mv num">${nf(days.size)}<small>از ${nf(pw.n)}</small></div>
     <div class="wd">${WDS.map((w,i)=>`<i class="${days.has(i)?'dn':P.days[i]?'pl':''} ${i===today?'td':''}"><b></b>${w}</i>`).join('')}</div></div>
@@ -235,48 +300,59 @@ function vSummary(){
    <div class="card"><div class="mt c2">بار تمرینی</div><div class="mv ${acC}" style="font-size:24px">${acL}</div><div class="mc num">نسبت ۷ به ۲۸ روز: ${ac==null?'—':nf(ac,2)}</div>${spark(vols.map((v,i,a)=>(a[i]+(a[i-1]||a[i]))/2),140,30,'var(--r2)',false)}</div>
    <div class="card"><div class="mt cg">هندیکپ گلف</div><div class="mv num">${S.prof&&S.prof.hcp!=null?nf(S.prof.hcp):'—'}</div><div class="mc">آکادمی گلف پات‌کلاب</div><div style="margin-top:10px;color:var(--gold)">${IC.flag}</div></div>
   </div></div>
+`);
+  if(can('gym.summary.trends'))sec.push(`
   <div class="sec"><h3>روندها</h3><div class="list">${trends.length?trends.map(t=>`<div class="li"><span class="ic ${t.c}" style="background:rgba(255,255,255,.06)">${IC[t.ic]}</span><div class="tx"><b>${t.t}</b><span>نسبت به دورهٔ قبل</span></div><div class="vl ${t.c} num">${t.v}</div></div>`).join(''):`<div class="li"><div class="tx"><b>هنوز روندی نیست</b><span>با ثبت چند جلسه و اندازه‌گیری، روندها اینجا ظاهر می‌شوند.</span></div></div>`}</div></div>
+`);
+  if(can('gym.summary.awards'))sec.push(`
   <div class="sec"><h3>جوایز<small>${nf(aw.filter(a=>a.ok).length)} از ${nf(aw.length)}</small></h3><div class="aw">${aw.map((a,i)=>`<div class="a ${a.ok?'':'lock'}">${medal(a.ic,i)}<b>${a.n}</b><span>${a.d}</span></div>`).join('')}</div></div>
+`);
+  return header('خلاصه')+(sec.length?sec.join(''):lockCard('خلاصه'))+`
   <div class="foot">PuttClub Gym · آکادمی گلف پات‌کلاب</div>`;}
 
 /* ---------- tab: training («تمرین») ---------- */
 function vTrain(){
   const P=plan(),k=pk(),ws=weekStart(new Date()),today=wIdx(new Date()),wl=weekLogs(),done=new Set(wl.map(l=>l.day));
-  const wk=clamp(Math.floor((Date.now()-Date.parse(S.data.start))/(7*DAY))+1,1,P.weeks);
+  const wk=clamp(Math.floor((Date.now()-Date.parse(P.start||S.data.start))/(7*DAY))+1,1,P.weeks);
+  const cP=can('gym.train.program'),cS=can('gym.train.session');
+  if(!cP&&!cS)return header('تمرین')+lockCard('تمرین');
   const sel=S.day,d=P.days[sel],ex=d&&EX[d.ex],selDate=new Date(+ws+sel*DAY);
   const logged=wl.find(l=>l.day===sel);
-  return header('تمرین')+`
+  return header('تمرین')+(cP?`
   <div class="ws">${WDS.map((w,i)=>`<button data-act="day" data-d="${i}" class="${i===sel?'sel':''} ${i===today?'td':''} ${done.has(i)?'dn':P.days[i]?'pl':''}">${w}<b class="num">${fmtD.format(new Date(+ws+i*DAY))}</b><i></i></button>`).join('')}</div>
   <div class="sec" style="margin-top:16px"><div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mt cg">برنامهٔ من</div><div style="font-size:20px;font-weight:850;margin-top:4px">${esc(P.name)}</div><div class="mc">${esc(P.lvl)} · ${nf(Object.keys(P.days).length)} جلسه در هفته</div></div>
     <div style="text-align:center"><div class="num" style="font-size:26px;font-weight:850">${nf(wk)}<span style="font-size:13px;color:var(--t2)">/${nf(P.weeks)}</span></div><div class="mc" style="margin:0">هفته</div></div></div>
     <div class="prog"><i style="width:${wk/P.weeks*100}%"></i></div>
-    <div class="mc" style="margin-top:10px">برنامهٔ پیش‌فرض آکادمی برای ${CHAR[k]} — پس از تعیین برنامه توسط مربی، همین‌جا جایگزین می‌شود.</div>
-  </div></div>
+    <div class="mc" style="margin-top:10px">${P.template===false?`برنامهٔ اختصاصی مربی${P.start?' — از '+fmtDM.format(new Date(P.start)):''}`:`برنامهٔ پیش‌فرض آکادمی برای ${CHAR[k]} — پس از تعیین برنامه توسط مربی، همین‌جا جایگزین می‌شود.`}</div>
+  </div></div>`:'')+`
   <div class="sec"><h3>${WDL[sel]} <small class="num" style="color:var(--t2)">${fmtDS.format(selDate)}</small></h3>
   ${d?`<div class="card tap" data-act="session" data-d="${sel}"><div class="exrow"><div class="th"><img src="assets/hero_${k}.webp" alt=""></div>
      <div class="tx"><b>${ex.name}</b><span class="num">روز ${esc(d.t)} · ${nf(d.sets)} ست × ${nf(d.reps)} تکرار · ${nf1(d.kg)} کیلو</span><div class="tags">${ex.mus.map(m=>`<i>${m[0]}</i>`).join('')}${logged?'<i class="g">انجام شد</i>':''}</div></div><span class="chev">${IC.chevL}</span></div></div>
-     <button class="btn-gold" style="width:100%;margin-top:12px" data-act="session" data-d="${sel}">${logged?'مشاهده و جلسهٔ دوباره':'شروع جلسه'}</button>`
+     ${cS?`<button class="btn-gold" style="width:100%;margin-top:12px" data-act="session" data-d="${sel}">${logged?'مشاهده و جلسهٔ دوباره':'شروع جلسه'}</button>`:''}`
    :`<div class="card rest-day">${IC.moon}<b>روز ریکاوری</b><p>بدن در استراحت قوی‌تر می‌شود. پیشنهاد: ۲۰ دقیقه پیاده‌روی سبک و تمرین‌های تحرک ستون فقرات سینه‌ای و لگن برای چرخش بهتر سوئینگ.</p></div>`}
   </div>
-  <div class="sec"><h3>کتابخانهٔ حرکات</h3><div class="card"><div class="mc" style="margin:0">فقط حرکاتی که مربی در برنامه‌ات قرار می‌دهد اینجا فعال می‌شوند.</div>
-   <div class="soon">${['سینه','پشت','پا','شانه','مرکز بدن','چرخش گلف'].map(c=>`<i>${IC.lock}${c}</i>`).join('')}</div></div></div>`;}
+  ${cP?`<div class="sec"><h3>کتابخانهٔ حرکات</h3><div class="card"><div class="mc" style="margin:0">فقط حرکاتی که مربی در برنامه‌ات قرار می‌دهد اینجا فعال می‌شوند.</div>
+   <div class="soon">${['سینه','پشت','پا','شانه','مرکز بدن','چرخش گلف'].map(c=>`<i>${IC.lock}${c}</i>`).join('')}</div></div></div>`:''}`;}
 
 /* ---------- tab: progress («پیشرفت») ---------- */
 function vProgress(){
+  const SG=[['meas','اندازه‌ها','gym.progress.meas'],['str','قدرت','gym.progress.strength'],['mus','عضلات','gym.progress.muscles']].filter(x=>can(x[2]));
+  if(!SG.length)return header('پیشرفت')+lockCard('پیشرفت');
+  if(!SG.some(x=>x[0]===S.seg))S.seg=SG[0][0];
   const seg=S.seg;
   let body='';
   if(seg==='meas')body=vMeas();else if(seg==='str')body=vStrength();else body=vMuscles();
-  return header('پیشرفت')+`<div class="seg">${[['meas','اندازه‌ها'],['str','قدرت'],['mus','عضلات']].map(([k,t])=>`<button data-act="seg" data-s="${k}" class="${seg===k?'on':''}">${t}</button>`).join('')}</div>`+body;}
+  return header('پیشرفت')+(SG.length<2?'':`<div class="seg">${SG.map(([k,t])=>`<button data-act="seg" data-s="${k}" class="${seg===k?'on':''}">${t}</button>`).join('')}</div>`)+body;}
 function vMeas(){
   const M=S.data.meas,n=M.length;if(S.mi<0||S.mi>=n)S.mi=n-1;
   const m=M[S.mi]||null,pv=S.mi>0?M[S.mi-1]:null,bf=navy(m),bmi=m&&m.height&&m.weight?m.weight/Math.pow(m.height/100,2):null;
   const wser=M.map(x=>x.weight).filter(v=>v!=null);
   return `<div class="mhead"><button data-act="mprev" ${S.mi>0?'':'disabled'} aria-label="قبلی">${IC.chevR}</button><div class="d num">${m?fmtDM.format(new Date(m.date)):'اندازه‌گیری ندارید'}</div><button data-act="mnext" ${S.mi<n-1?'':'disabled'} aria-label="بعدی">${IC.chevL}</button></div>
   <div class="mstage" id="mstage"><div class="glow"></div>
-   <img class="fig" id="figA" src="assets/fig_${pk()}.webp" alt="" style="opacity:${S.skin==='fig'?1:0}"><img class="fig" id="figB" src="assets/mus_${pk()}.webp" alt="" style="opacity:${S.skin==='mus'?1:0}" loading="lazy">
+   <img class="fig" id="figA" src="assets/fig_${pk()}.webp" alt="" style="opacity:${S.skin==='fig'||!can('gym.player.anatomy')?1:0}"><img class="fig" id="figB" src="assets/mus_${pk()}.webp" alt="" style="opacity:${S.skin==='mus'&&can('gym.player.anatomy')?1:0}" loading="lazy">
    <svg class="ov" id="mov"></svg><div id="mcards"></div>
-   <div class="mtog"><button data-act="skin" data-s="fig" class="${S.skin==='fig'?'on':''}">بدن</button><button data-act="skin" data-s="mus" class="${S.skin==='mus'?'on':''}">عضلات</button></div>
+   ${can('gym.player.anatomy')?`<div class="mtog"><button data-act="skin" data-s="fig" class="${S.skin==='fig'?'on':''}">بدن</button><button data-act="skin" data-s="mus" class="${S.skin==='mus'?'on':''}">عضلات</button></div>`:''}
   </div>
   <div class="sec" style="margin-top:14px"><button class="btn-gold" style="width:100%" data-act="mnew">${IC.plus} ثبت اندازه‌گیری جدید</button></div>
   <div class="sec"><h3>ترکیب بدن</h3><div class="grid2">
@@ -348,9 +424,9 @@ function vMe(){
    <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">${p.hcp!=null?`<span class="chip">${IC.flag.replace('width="20" height="20"','width="14" height="14"')} هندیکپ ${nf(p.hcp)}</span>`:''}<span class="chip">${p.role==='admin'?'مدیر':p.demo?'حالت نمایشی':'عضو آکادمی'}</span></div></div>
   <div class="sec"><h3>کاراکتر من</h3><div class="card"><div class="mc" style="margin:0">بدن سه‌بعدی تو در باشگاه و صفحهٔ پیشرفت — به‌صورت خودکار از جنسیت و سن انتخاب شده است.</div>
    <div class="chars">${['m','f','t','g'].map(c=>`<button data-act="char" data-c="${c}" class="${c===k?'on':''}"><img src="assets/fig_${c}.webp" alt="" loading="lazy">${CHAR[c].split(' · ')[0]}<br><small style="font-weight:500;opacity:.7">${CHAR[c].split(' · ')[1]}</small></button>`).join('')}</div></div></div>
-  <div class="sec"><h3>مشخصات</h3><div class="list">${row('سن',p.age!=null?nf(p.age)+' سال':'—')}${row('جنسیت',esc(p.gender||'—'))}${row('قد',last&&last.height?nf1(last.height)+' cm':'—')}${row('وزن',last&&last.weight?nf1(last.weight)+' kg':'—')}</div></div>
+  <div class="sec"><h3>مشخصات</h3><div class="list">${p.acc?row('اشتراک',p.acc.staff?'مدیر · دسترسی کامل':esc(PLAN_FA[p.acc.plan]||p.acc.plan||'—')+(p.acc.end?' · تا '+fmtDM.format(new Date(String(p.acc.end).slice(0,10)+'T12:00:00')):'')):''}${row('سن',p.age!=null?nf(p.age)+' سال':'—')}${row('جنسیت',esc(p.gender||'—'))}${row('قد',last&&last.height?nf1(last.height)+' cm':'—')}${row('وزن',last&&last.weight?nf1(last.weight)+' kg':'—')}</div></div>
   <div class="sec"><h3>تنظیمات</h3><div class="list">${tg('tsound','صدای پایان استراحت',S.data.set.sound)}${tg('tvib','لرزش',S.data.set.vib,'در دستگاه‌های پشتیبانی‌شده')}${tg('tsample','دادهٔ نمونه',hasSample(),'برای دیدن نمودارها؛ با برچسب «نمونه»')}</div></div>
-  <div class="sec"><h3>همگام‌سازی</h3><div class="card"><div class="mc" style="margin:0;line-height:1.9">داده‌های تمرین فعلاً امن روی همین دستگاه ذخیره می‌شوند. همگام‌سازی ابری با پنل آکادمی پس از تأیید جدول‌های پایگاه داده فعال می‌شود.</div></div></div>
+  <div class="sec"><h3>همگام‌سازی</h3><div class="card"><div class="mc sync" id="syncst" style="margin:0;line-height:1.9">${esc(syncText())}</div></div></div>
   ${standalone?'':`<div class="sec"><h3>نصب روی گوشی</h3><div class="card"><div class="mc" style="margin:0;line-height:2">آیفون: در Safari دکمهٔ «اشتراک‌گذاری» ← «Add to Home Screen».<br>اندروید: منوی مرورگر ← «نصب برنامه».</div></div></div>`}
   <div class="sec"><div class="list"><button class="li" style="width:100%" data-act="logout"><div class="tx"><b class="danger">خروج از حساب</b></div></button></div></div>
   <div class="foot">PuttClub Gym نسخهٔ ${fa(CFG.ver)}<br>بدن‌ها: Microsoft Rocketbox (MIT) · آناتومی: Z-Anatomy و BodyParts3D (CC BY-SA)<br><a href="play/CREDITS.txt" style="color:var(--t3)">منابع و مجوزها</a></div>`;}
@@ -358,12 +434,15 @@ function vMe(){
 /* ---------- render & navigation ---------- */
 const VIEWS={summary:vSummary,train:vTrain,progress:vProgress,me:vMe};
 function render(t){if(!S.data||!S.prof)return;t=t||S.tab;const el=$('#t-'+t);const y=el.scrollTop;el.innerHTML=VIEWS[t]();el.scrollTop=y;animRings(el);if(t==='progress'&&S.seg==='meas')drawStage();}
-function go(t){if(!S.data||!S.prof)return;S.tab=t;$$('.tab').forEach(e=>e.classList.toggle('on',e.id==='t-'+t));$$('#tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));render(t);}
+function firstTab(){return ['summary','train','progress'].find(tabOk)||'me';}
+function applyTabs(){$$('#tabbar button').forEach(b=>{b.style.display=tabOk(b.dataset.t)?'':'none';});}
+function go(t){if(!S.data||!S.prof)return;if(!tabOk(t))t=firstTab();S.tab=t;$$('.tab').forEach(e=>e.classList.toggle('on',e.id==='t-'+t));$$('#tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));render(t);}
 function onScroll(e){const el=e.target;if(!el.classList||!el.classList.contains('tab'))return;const nb=$('.nb',el);if(nb)nb.classList.toggle('on',el.scrollTop>52);}
 
 /* ---------- session (push screen) ---------- */
 let clockT=null;
 function openSession(di){
+  if(!can('gym.train.session')){toast('ثبت جلسه در اشتراک شما فعال نیست');return;}
   const P=plan(),d=P.days[di];if(!d)return;
   let A=S.data.active;
   if(!A||A.day!==di){
@@ -379,7 +458,7 @@ function renderSession(){
   const plate=(kg)=>{const side=(kg-P.bar)/2;return side>0?`هر طرف ${nf1(side)} کیلو + هالتر ${nf(P.bar)} کیلویی`:`فقط هالتر ${nf(P.bar)} کیلویی`;};
   $('#push').innerHTML=`<div class="bar" id="pbar"><button class="bk" data-act="back">${IC.chevR}<span>بازگشت</span></button><div class="clock" id="clock">${hhmmss((Date.now()-Date.parse(A.start))/1000)}</div></div>
   <div class="body" id="pbody">
-   <div class="sx-hero"><img src="assets/hero_${k}.webp" alt=""><div class="gr"></div><button class="chip p3" data-act="player">${IC.cube} نمایش سه‌بعدی فرم صحیح</button></div>
+   <div class="sx-hero"><img src="assets/hero_${k}.webp" alt=""><div class="gr"></div>${can('gym.player.form')?`<button class="chip p3" data-act="player">${IC.cube} نمایش سه‌بعدی فرم صحیح</button>`:''}</div>
    <div class="sx-t"><div class="k">روز ${esc(d.t)} · ${WDL[A.day]}</div><h2>${ex.name}</h2><div class="en">${ex.en} · ${ex.eq}</div>
     <div class="tags">${ex.mus.map((m,i)=>`<i class="${i?'':'g'}">${m[0]}</i>`).join('')}</div>
     <div class="rx num"><div><small>ست × تکرار</small><b>${nf(d.sets)} × ${nf(d.reps)}</b></div><div><small>بار</small><b>${nf1(d.kg)} kg</b></div><div><small>سختی هدف</small><b>RPE ${d.rpe}</b></div><div><small>تمپو</small><b>${d.tempo}</b></div><div><small>استراحت</small><b>${mmss(d.rest)}</b></div><div><small>هالتر</small><b>${nf(P.bar)} kg</b></div></div></div>
@@ -391,7 +470,7 @@ function renderSession(){
    <div class="sec"><h3>چرا برای گلف؟</h3><div class="card golfn"><span style="color:var(--gold);flex:none;margin-top:4px">${IC.flag}</span><div>${ex.golf}</div></div></div>
    ${A.sets.some(s=>s.done)?'':`<div class="sec"><button class="btn-ghost" style="width:100%;color:var(--t2)" data-act="discard">لغو جلسه</button></div>`}
   </div>
-  <div class="sfoot"><button class="sq" data-act="resttoggle" aria-label="تایمر استراحت" style="color:var(--gold)">${IC.timer}</button><button class="btn-gold" data-act="finish">پایان تمرین</button></div>`;
+  <div class="sfoot">${can('gym.train.timer')?`<button class="sq" data-act="resttoggle" aria-label="تایمر استراحت" style="color:var(--gold)">${IC.timer}</button>`:''}<button class="btn-gold" data-act="finish">پایان تمرین</button></div>`;
   $('#pbody').addEventListener('scroll',e=>$('#pbar').classList.toggle('sc',e.target.scrollTop>10),{passive:true});
 }
 function setInput(e){const t=e.target;if(!t.dataset||!t.dataset.f)return;const r=t.closest('.sr');const A=S.data.active;if(!A||!r)return;const v=num(t.value);A.sets[+r.dataset.i][t.dataset.f]=v==null?0:v;saveData();}
@@ -406,8 +485,8 @@ function finish(){
   const A=S.data.active;if(!A)return;const done=A.sets.filter(s=>s.done&&s.kg>0&&s.reps>0);
   if(!done.length){if(confirm('هیچ ستی ثبت نشده. جلسه لغو شود؟')){S.data.active=null;saveData();closePush();}return;}
   const before=bestE1(),awBefore=awards().filter(a=>a.ok).map(a=>a.id);
-  const log=mkLog({date:A.start,day:A.day,ex:A.ex,sets:A.sets.map(s=>({kg:s.kg,reps:s.reps,done:!!s.done})),dur:Math.round((Date.now()-Date.parse(A.start))/1000)});
-  S.data.logs.push(log);S.data.logs.sort((a,b)=>a.date<b.date?-1:1);S.data.active=null;saveData();SYNC.push(log);
+  const log=mkLog({date:A.start,day:A.day,ex:A.ex,pid:plan().id||null,sets:A.sets.map(s=>({kg:s.kg,reps:s.reps,done:!!s.done})),dur:Math.round((Date.now()-Date.parse(A.start))/1000)});
+  S.data.logs.push(log);S.data.logs.sort((a,b)=>a.date<b.date?-1:1);S.data.active=null;saveData();SYNC.add('workout_save',wPayload(log));
   const pr=before>0&&log.e1rm>before+.01,newAw=awards().filter(a=>a.ok&&!awBefore.includes(a.id));
   closePush();
   const pw=planWeek(),wl=weekLogs(),sets=wl.reduce((a,l)=>a+l.nsets,0),vol=wl.reduce((a,l)=>a+l.vol,0);
@@ -421,11 +500,12 @@ function finish(){
 /* ---------- 3D player (lazy, full screen) ---------- */
 const PLAYER_BYTES=14.9e6;let playerWarm=false;
 async function openPlayer(){
+  if(!can('gym.player.form')){toast('نمایش سه‌بعدی در اشتراک شما فعال نیست');return;}
   const pl=$('#player'),k=pk();
   pl.innerHTML=`<div class="ld" id="pld"><img class="bg" src="assets/hero_${k}.webp" alt=""><div class="c"><svg width="74" height="74" viewBox="0 0 74 74"><circle cx="37" cy="37" r="32" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="5"/><circle id="pring" cx="37" cy="37" r="32" fill="none" stroke="var(--gold)" stroke-width="5" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201" transform="rotate(-90 37 37)" style="transition:stroke-dashoffset .3s"/><image href="assets/emblem.webp" x="21" y="21" width="32" height="32"/></svg><b>در حال ورود به PuttClub Gym</b><span id="ptxt">آماده‌سازی صحنهٔ سه‌بعدی…</span></div></div>
    <div class="top"><button class="gbtn" data-act="closeplayer" aria-label="بستن">${IC.x}</button><div class="tt">پرس سینه با هالتر<small>${CHAR[k]}</small></div><span style="width:40px"></span></div>`;
   pl.classList.add('on');
-  const src='play/bench-press.html?embed=1&p='+k;
+  const src='play/bench-press.html?embed=1&p='+k+(can('gym.player.anatomy')?'':'&mus=0');
   if(!playerWarm){try{const r=await fetch('play/bench-press.html',{cache:'default'});if(r.body&&r.body.getReader){const rd=r.body.getReader();let got=0;for(;;){const {done,value}=await rd.read();if(done)break;got+=value.length;const f=Math.min(.99,got/PLAYER_BYTES);const pr=$('#pring');if(!pr)return;pr.style.strokeDashoffset=201*(1-f);$('#ptxt').textContent=fa(Math.round(f*100))+'٪ · بار اول کمی طول می‌کشد';}}else await r.blob();playerWarm=true;}catch(e){}}
   if(!pl.classList.contains('on'))return;
   const pr=$('#pring');if(pr)pr.style.strokeDashoffset=0;$('#ptxt')&&($('#ptxt').textContent='ساخت صحنه و نورپردازی…');
@@ -440,9 +520,9 @@ function closeSheet(){const s=$('#sheet');s.classList.remove('on');setTimeout(()
 function measForm(){const last=S.data.meas[S.data.meas.length-1]||{};
   sheet(`<h3>اندازه‌گیری جدید</h3><p class="s">${fmtDM.format(new Date())} · سانتی‌متر و کیلوگرم</p><form id="mform"><div class="fgrid">${MF.map(([f,l,u])=>`<label><span>${l} (${u})</span><input name="${f}" inputmode="decimal" placeholder="${last[f]!=null?fa(last[f]):'—'}"></label>`).join('')}</div>
    <div class="mc" style="margin:12px 2px">نکته: صبح، ناشتا و با متر نواری غیرکشی اندازه بگیرید. خالی‌ها از اندازهٔ قبلی برداشته می‌شوند.</div><button class="btn-gold" style="width:100%" type="submit">ذخیره</button></form>`);
-  $('#mform').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.target),m={date:new Date().toISOString()};let any=false;
+  $('#mform').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.target),m={id:mid('M'),date:new Date().toISOString()};let any=false;
     MF.forEach(([f])=>{const v=num(fd.get(f));if(v!=null&&v>0){m[f]=v;any=true;}else if(last[f]!=null&&!last.s)m[f]=last[f];});
-    if(!any){toast('دست‌کم یک اندازه وارد کنید');return;}S.data.meas.push(m);saveData();S.mi=S.data.meas.length-1;closeSheet();toast('اندازه‌گیری ذخیره شد');});}
+    if(!any){toast('دست‌کم یک اندازه وارد کنید');return;}S.data.meas.push(m);saveData();SYNC.add('meas_save',m);S.mi=S.data.meas.length-1;closeSheet();toast('اندازه‌گیری ذخیره شد');});}
 
 /* ---------- actions ---------- */
 const ACT={
@@ -450,16 +530,16 @@ const ACT={
  session:(a,e)=>{if(e.target.closest('[data-act="player"]'))return;openSession(+a.dataset.d);},
  player:(a,e)=>{e.stopPropagation();openPlayer();},closeplayer:closePlayer,back:closePush,
  check:a=>{const A=S.data.active,i=+a.dataset.i,s=A.sets[i];const r=a.closest('.sr');$$('input',r).forEach(inp=>{const v=num(inp.value);s[inp.dataset.f]=v==null?0:v;});
-   s.done=!s.done;saveData();r.classList.toggle('ok',s.done);haptic(15);if(s.done){startRest(plan().days[A.day].rest);}},
+   s.done=!s.done;saveData();r.classList.toggle('ok',s.done);haptic(15);if(s.done&&can('gym.train.timer')){startRest(plan().days[A.day].rest);}},
  addset:()=>{const A=S.data.active,l=A.sets[A.sets.length-1]||{kg:plan().days[A.day].kg,reps:plan().days[A.day].reps};A.sets.push({kg:l.kg,reps:l.reps,done:false});saveData();const y=$('#pbody').scrollTop;renderSession();$('#pbody').scrollTop=y;},
  finish,discard:()=>{S.data.active=null;saveData();closePush();},
  resttoggle:()=>{if($('#rest').classList.contains('on'))stopRest();else startRest(plan().days[S.data.active.day].rest);},
  rminus:()=>{restEnd-=15000;restDur=Math.max(5,restDur-15);tickRest();},rplus:()=>{restEnd+=15000;restDur+=15;tickRest();},rskip:stopRest,
  sheetclose:closeSheet,mnew:measForm,mprev:()=>{S.mi--;render('progress');},mnext:()=>{S.mi++;render('progress');},
- mdel:()=>{if(confirm('این اندازه‌گیری حذف شود؟')){S.data.meas.splice(S.mi,1);saveData();S.mi=-1;render('progress');}},
+ mdel:()=>{if(confirm('این اندازه‌گیری حذف شود؟')){const dm=S.data.meas[S.mi];if(dm&&dm.id)SYNC.add('meas_delete',{id:dm.id});S.data.meas.splice(S.mi,1);saveData();S.mi=-1;render('progress');}},
  skin:a=>{S.skin=a.dataset.s;$('#figA').style.opacity=S.skin==='fig'?1:0;$('#figB').style.opacity=S.skin==='mus'?1:0;$$('.mtog button').forEach(b=>b.classList.toggle('on',b.dataset.s===S.skin));},
- char:a=>{S.data.pk=a.dataset.c;saveData();render('me');toast('کاراکتر تغییر کرد: '+CHAR[a.dataset.c]);},
- tsound:()=>{S.data.set.sound=!S.data.set.sound;saveData();render('me');},tvib:()=>{S.data.set.vib=!S.data.set.vib;saveData();render('me');},
+ char:a=>{S.data.pk=a.dataset.c;saveData();SYNC.add('settings_save',{character:a.dataset.c});render('me');toast('کاراکتر تغییر کرد: '+CHAR[a.dataset.c]);},
+ tsound:()=>{S.data.set.sound=!S.data.set.sound;saveData();SYNC.add('settings_save',{sound:S.data.set.sound});render('me');},tvib:()=>{S.data.set.vib=!S.data.set.vib;saveData();SYNC.add('settings_save',{vib:S.data.set.vib});render('me');},
  tsample:()=>{setSample(!hasSample());render('me');toast(hasSample()?'دادهٔ نمونه اضافه شد':'دادهٔ نمونه حذف شد');},
  logout:()=>{if(confirm('از حساب خارج می‌شوید؟'))signOut();}};
 document.addEventListener('click',e=>{const a=e.target.closest('[data-act]');if(!a)return;const f=ACT[a.dataset.act];if(f){e.preventDefault();f(a,e);}});
@@ -470,11 +550,16 @@ addEventListener('resize',()=>{if(S.tab==='progress'&&S.seg==='meas')drawStage()
 
 /* ---------- boot ---------- */
 function showLogin(msg){$('#login').classList.remove('hide');$('#lerr').textContent=msg||'';$('#tabbar').classList.add('off');}
-function enter(){$('#login').classList.add('hide');loadData();if(S.prof.demo&&!S.data.seeded){setSample(true);S.data.seeded=true;saveData();}
-  $('#tabbar').classList.remove('off');go(S.tab);if(S.data.active)setTimeout(()=>toast('جلسهٔ نیمه‌تمام داری — از تب تمرین ادامه بده'),900);}
+function enter(){$('#login').classList.add('hide');applyEx();loadData();if(S.prof.demo&&!S.data.seeded){setSample(true);S.data.seeded=true;saveData();}
+  if(S.boot){mergeServer(S.boot);S.boot=null;lastRefresh=SYNC.last=Date.now();SYNC.state='ok';}else if(S.sess)refresh();
+  applyTabs();$('#tabbar').classList.remove('off');go(S.tab);if(S.data.active)setTimeout(()=>toast('جلسهٔ نیمه‌تمام داری — از تب تمرین ادامه بده'),900);}
 $('#lform').addEventListener('submit',async e=>{e.preventDefault();const b=$('#lbtn');b.disabled=true;b.innerHTML='<span class="spin"></span>';$('#lerr').textContent='';
   try{await signIn($('#lu').value,$('#lp').value);enter();}catch(err){$('#lerr').textContent=err.message;}finally{b.disabled=false;b.textContent='ورود';}});
 $('#ldemo').addEventListener('click',()=>{demo();enter();});
-if(S.prof&&(S.sess||S.prof.demo)){enter();if(S.sess)token();}else showLogin('');
+if(S.prof&&(S.sess||S.prof.demo))enter();else showLogin('');
+/* live: access-matrix / program / data changes from the academy arrive without re-login */
+addEventListener('online',()=>{SYNC.flush();refresh();});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S.sess&&Date.now()-lastRefresh>60000)refresh();});
+setInterval(()=>{if(document.visibilityState==='visible'&&S.sess&&Date.now()-lastRefresh>300000)refresh();},60000);
 if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.register('sw.js').catch(()=>{});
   let reloaded=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(reloaded||(S.data&&S.data.active))return;reloaded=true;location.reload();});}

@@ -1,0 +1,37 @@
+name: HTTPS for gym.puttclub.ir
+# GitHub Pages issues the Let's Encrypt certificate in the background. This job:
+#  • enforces HTTPS as soon as the certificate is approved/issued;
+#  • if the order is stuck in bad_authz/errored, restarts it at most every 3 hours
+#    (Let's Encrypt allows only 5 failed validations per hostname per hour).
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch: {}
+permissions:
+  pages: write
+  contents: write
+jobs:
+  cert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check certificate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          API="https://api.github.com/repos/${GITHUB_REPOSITORY}/pages"
+          H=(-H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json")
+          R=$(curl -s "${H[@]}" "$API"); echo "$R" | jq '{cname, https_enforced, https_certificate}'
+          STATE=$(echo "$R" | jq -r '.https_certificate.state // "none"'); ENF=$(echo "$R" | jq -r '.https_enforced')
+          if [ "$ENF" = "true" ]; then echo "HTTPS already enforced."; exit 0; fi
+          case "$STATE" in
+            approved|issued)
+              curl -s -X PUT "${H[@]}" "$API" -d '{"cname":"gym.puttclub.ir","https_enforced":true,"source":{"branch":"main","path":"/"}}' -o /dev/null -w "enforce %{http_code}\n" ;;
+            bad_authz|errored|authorization_revoked|destroy_pending)
+              if [ $(( $(date -u +%H) % 3 )) -eq 0 ]; then
+                echo "Restarting certificate order ($STATE)…"
+                curl -s -X PUT "${H[@]}" "$API" -d '{"cname":null,"source":{"branch":"main","path":"/"}}' -o /dev/null -w "unset %{http_code}\n"
+                sleep 120
+                curl -s -X PUT "${H[@]}" "$API" -d '{"cname":"gym.puttclub.ir","source":{"branch":"main","path":"/"}}' -o /dev/null -w "set %{http_code}\n"
+              else echo "Stuck ($STATE); next restart at an hour divisible by 3 (UTC)."; fi ;;
+            *) echo "Certificate in progress: $STATE" ;;
+          esac
