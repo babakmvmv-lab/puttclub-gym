@@ -1,0 +1,3 @@
+MediaPipe Tasks Vision 0.10 (@mediapipe/tasks-vision 1.1.0) — Apache License 2.0 — © Google LLC
+Pose Landmarker (full) model — Apache License 2.0 — © Google LLC
+Used on-device only for tier-3 body photos; images never leave the phone.

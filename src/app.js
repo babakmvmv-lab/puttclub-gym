@@ -3,7 +3,7 @@
    Auth: Supabase (same accounts as the academy panel — password changes / new users apply automatically).
    Data: dedicated database (schema «gym») through the single server gateway rpc/gym_api; device copy + offline queue.
    Access: «اشتراک‌ها ← ماتریس دسترسی ← باشگاه پات کلاب» per plan, enforced on the server and mirrored in the UI. */
-const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.5.0'};
+const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.6.0'};
 /*GEO*/
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const fa=v=>String(v).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
@@ -331,19 +331,22 @@ function vProgress(){
   return header('پیشرفت')+(SG.length<2?'':`<div class="seg">${SG.map(([k,t])=>`<button data-act="seg" data-s="${k}" class="${seg===k?'on':''}">${t}</button>`).join('')}</div>`)+body;}
 function vMeas(){
   const M=S.data.meas,n=M.length;if(S.mi<0||S.mi>=n)S.mi=n-1;
-  const m=M[S.mi]||null,pv=S.mi>0?M[S.mi-1]:null,bf=navy(m),bmi=m&&m.height&&m.weight?m.weight/Math.pow(m.height/100,2):null;
+  const m=M[S.mi]||null,pv=S.mi>0?M[S.mi-1]:null,bfo=bodyFat(m),bf=bfo&&bfo.v,bmi=m&&m.height&&m.weight?m.weight/Math.pow(m.height/100,2):null;
   const wser=M.map(x=>x.weight).filter(v=>v!=null);
   return `<div class="mhead"><button data-act="mprev" ${S.mi>0?'':'disabled'} aria-label="قبلی">${IC.chevR}</button><div class="d num">${m?fmtDM.format(new Date(m.date)):'اندازه‌گیری ندارید'}</div><button data-act="mnext" ${S.mi<n-1?'':'disabled'} aria-label="بعدی">${IC.chevL}</button></div>
   <div class="mstage" id="mstage"><div class="glow"></div>
    <img class="fig" id="figA" src="${AU(`assets/fig_${pk()}.webp`)}" alt="" style="opacity:${S.skin==='fig'||!can('gym.player.anatomy')?1:0}"><img class="fig" id="figB" src="${AU(`assets/mus_${pk()}.webp`)}" alt="" style="opacity:${S.skin==='mus'&&can('gym.player.anatomy')?1:0}" loading="lazy">
+   <img class="fig fig3" id="figS" alt="" style="opacity:0"><div class="mchip" id="mchip"><span class="sp"></span>در حال ساخت بدن سه‌بعدی…</div>
    <svg class="ov" id="mov"></svg><div id="mcards"></div>
    ${can('gym.player.anatomy')?`<div class="mtog"><button data-act="skin" data-s="fig" class="${S.skin==='fig'?'on':''}">بدن</button><button data-act="skin" data-s="mus" class="${S.skin==='mus'?'on':''}">عضلات</button></div>`:''}
   </div>
   <div class="sec" style="margin-top:14px"><button class="btn-gold" style="width:100%" data-act="mnew">${IC.plus} ثبت اندازه‌گیری جدید</button></div>
   <div class="sec"><h3>ترکیب بدن</h3><div class="grid2">
-   <div class="card"><div class="mt c1">درصد چربی</div><div class="mv num">${bf?nf1(bf):'—'}<small>٪</small></div><div class="mc">روش نیروی دریایی آمریکا${pk()==='g'||pk()==='t'?' · برای نوجوانان تقریبی':''}</div></div>
+   <div class="card"><div class="mt c1">درصد چربی</div><div class="mv num">${bf?nf1(bf):'—'}<small>٪</small></div><div class="mc">${bfo?BFM[bfo.m]:'قد، وزن و دورها را ثبت کنید'}</div></div>
    <div class="card"><div class="mt c3">شاخص تودهٔ بدن</div><div class="mv num">${bmi?nf1(bmi):'—'}</div><div class="mc">${bmi?(bmi<18.5?'کمتر از نرمال':bmi<25?'نرمال':bmi<30?'بالاتر از نرمال':'بالا'):'قد و وزن را ثبت کنید'}</div></div>
    <div class="card"><div class="mt c2">تودهٔ بدون چربی</div><div class="mv num">${bf&&m.weight?nf1(m.weight*(1-bf/100)):'—'}<small>kg</small></div><div class="mc">وزن × (۱ − چربی)</div></div>
+   ${sumSF(m)?`<div class="card"><div class="mt c1">مجموع ۸ چین پوستی</div><div class="mv num">${nf1(sumSF(m))}<small>mm</small></div><div class="mc">ISAK · هرچه کمتر، چربی کمتر</div></div>`:''}
+   ${m?`<div class="card"><div class="mt c3">سطح اندازه‌گیری</div><div class="mv num">${fa(tierOf(m))}<small>از ۳</small></div><div class="mc">${['','پایه · دقت شکل ±۲–۴ سانتی‌متر','مربی · دقت ±۱–۲ سانتی‌متر','پیشرفته · دقت ±۱ سانتی‌متر'][tierOf(m)]}</div></div>`:''}
    <div class="card"><div class="mt cg">روند وزن</div><div class="mv num">${m&&m.weight?nf1(m.weight):'—'}<small>kg</small></div>${spark(wser.slice(-8),140,36,'var(--gold)')}</div>
   </div></div>
   ${m&&!m.s?`<div class="sec"><button class="btn-ghost" style="width:100%" data-act="mdel">${'حذف این اندازه‌گیری'}</button></div>`:''}`;}
@@ -351,8 +354,16 @@ function drawStage(){
   const st=$('#mstage');if(!st)return;const k=pk(),g=GEO[k],W=st.clientWidth;const H=Math.round(clamp(W*1.92,620,1060));st.style.height=H+'px';
   const imgH=Math.round((g.c[1]-g.c[0])*1440),s=H*.965/imgH,left=W*.655-400*s,top=H*.012;
   $$('img.fig',st).forEach(im=>{im.style.left=left+'px';im.style.top=top+'px';im.style.width=800*s+'px';im.style.height=imgH*s+'px';});
-  const X=f=>left+f*800*s,Y=f=>top+(f-g.c[0])*1440*s;
+  let X=f=>left+f*800*s,Y=f=>top+(f-g.c[0])*1440*s;
   const M=S.data.meas,m=M[S.mi]||null,pv=S.mi>0?M[S.mi-1]:null;
+  const anat=can('gym.player.anatomy'),mus=S.skin==='mus'&&anat,sk=m&&!mus?fitKey(m):null,still=sk?BS.mem.get(sk):null,fS=$('#figS',st);
+  let sites=g;
+  if(still){const sh=H*.95,sw=sh*still.w/still.h,sl=W*.635-sw/2,stp=H*.004;Object.assign(fS.style,{left:sl+'px',top:stp+'px',width:sw+'px',height:sh+'px'});
+    if(fS.dataset.k!==sk){fS.style.opacity=0;fS.onload=()=>{fS.style.opacity=1;};fS.src=still.url;fS.dataset.k=sk;}else fS.style.opacity=1;
+    X=f=>sl+f*sw;Y=f=>stp+f*sh;sites=still.sites;}
+  else if(fS){fS.style.opacity=0;if(sk&&can('gym.player.form'))BS.want(m);}
+  $('#figA',st).style.opacity=!mus&&!still?1:0;const fB=$('#figB',st);if(fB)fB.style.opacity=mus?1:0;
+  const ch=$('#mchip',st);if(ch)ch.classList.toggle('on',!!(sk&&!still&&can('gym.player.form')));
   const n=MF.length,rowH=(H-14)/n,cw=Math.min(132,W*.335),bh=clamp(rowH-36,30,38);
   let cards='',paths='';
   const horizon=Y(.5);
@@ -360,7 +371,7 @@ function drawStage(){
     const y0=10+i*rowH+(rowH-bh-20)*.55,cy=y0+20+bh/2,v=m?m[f]:null,p=pv?pv[f]:null,dl=v!=null&&p!=null?Math.round((v-p)*10)/10:null;
     cards+=`<div class="mcard" style="top:${y0}px;width:${cw}px"><div class="l">${lab}</div><div class="b" style="height:${bh}px;align-items:center"><b class="num">${v!=null?Number(v).toFixed(1):'—'}</b><small>${u}</small></div></div>`;
     if(dl)cards+=`<div class="mdelta ${dl>0?'cu':'cd'}" style="left:${12+cw+6}px;top:${cy-8}px">${dl>0?'▲ +':'▼ −'}${Math.abs(dl).toFixed(1)} ${u}</div>`;
-    const site=g[f];if(!site)return;
+    const site=sites[f];if(!site)return;
     const ys=Y(site[0]),xl=X(site[1]),xr=X(site[2]),w=xr-xl,bow=w*.2*clamp((horizon-ys)/(H*.35),-1,1);
     paths+=`<path d="M${xl} ${ys} Q${(xl+xr)/2} ${ys-bow*2} ${xr} ${ys}" stroke-dasharray="4 3.2" />`;
     const ex=12+cw,c1=xl-Math.max(26,(xl-ex)*.55),c2=ex+Math.max(26,(xl-ex)*.45);
@@ -421,7 +432,7 @@ const VIEWS={summary:vSummary,train:vTrain,progress:vProgress,me:vMe};
 function render(t){if(!S.data||!S.prof)return;t=t||S.tab;const el=$('#t-'+t);const y=el.scrollTop;el.innerHTML=VIEWS[t]();el.scrollTop=y;animRings(el);if(t==='progress'&&S.seg==='meas')drawStage();}
 function firstTab(){return ['summary','train','progress'].find(tabOk)||'me';}
 function applyTabs(){$$('#tabbar button').forEach(b=>{b.style.display=tabOk(b.dataset.t)?'':'none';});}
-function go(t){if(!S.data||!S.prof)return;if(!tabOk(t))t=firstTab();S.tab=t;$$('.tab').forEach(e=>e.classList.toggle('on',e.id==='t-'+t));$$('#tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));render(t);}
+function go(t){if(!S.data||!S.prof)return;if(!tabOk(t))t=firstTab();if(t!=='progress'&&typeof BS!=='undefined')BS.stop();S.tab=t;$$('.tab').forEach(e=>e.classList.toggle('on',e.id==='t-'+t));$$('#tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));render(t);}
 function onScroll(e){const el=e.target;if(!el.classList||!el.classList.contains('tab'))return;const nb=$('.nb',el);if(nb)nb.classList.toggle('on',el.scrollTop>52);}
 
 /* ---------- session (push screen) ---------- */
@@ -580,7 +591,7 @@ const ACT={
  rminus:()=>{restEnd-=15000;restDur=Math.max(5,restDur-15);tickRest();},rplus:()=>{restEnd+=15000;restDur+=15;tickRest();},rskip:stopRest,
  sheetclose:closeSheet,mnew:measForm,mprev:()=>{S.mi--;render('progress');},mnext:()=>{S.mi++;render('progress');},
  mdel:()=>{if(confirm('این اندازه‌گیری حذف شود؟')){const dm=S.data.meas[S.mi];if(dm&&dm.id)SYNC.add('meas_delete',{id:dm.id});S.data.meas.splice(S.mi,1);saveData();S.mi=-1;render('progress');}},
- skin:a=>{S.skin=a.dataset.s;$('#figA').style.opacity=S.skin==='fig'?1:0;$('#figB').style.opacity=S.skin==='mus'?1:0;$$('.mtog button').forEach(b=>b.classList.toggle('on',b.dataset.s===S.skin));},
+ skin:a=>{S.skin=a.dataset.s;drawStage();$$('.mtog button').forEach(b=>b.classList.toggle('on',b.dataset.s===S.skin));},
  char:a=>{S.data.pk=a.dataset.c;saveData();SYNC.add('settings_save',{character:a.dataset.c});render('me');toast('کاراکتر تغییر کرد: '+CHAR[a.dataset.c]);},
  tsound:()=>{S.data.set.sound=!S.data.set.sound;saveData();SYNC.add('settings_save',{sound:S.data.set.sound});render('me');},tvib:()=>{S.data.set.vib=!S.data.set.vib;saveData();SYNC.add('settings_save',{vib:S.data.set.vib});render('me');},
  logout:()=>{if(confirm('از حساب خارج می‌شوید؟'))signOut();}};

@@ -94,6 +94,9 @@ canvas{display:block;width:100%;height:100%;cursor:grab}
 }
 /* ---- embedded in PuttClub Gym app (?embed=1) ---- */
 body.embed{background:#000}
+body.bodyv .hud-top,body.bodyv .musleg,body.bodyv .dock,body.bodyv .gauges,body.bodyv .phase,body.bodyv #phase{display:none!important}
+body.bodyv .stage{background:#0b0b0c;touch-action:none}
+body.bodyv #loading{color:#d8b45a}
 body.embed .wrap{display:block;padding:0;height:100%}
 body.embed .side{display:none}
 body.embed .stage{height:100vh;height:100dvh;min-height:0;border:0;border-radius:0}
@@ -5662,6 +5665,7 @@ function create(o){
   const forced=qs.has('q')?Math.max(0,Math.min(STEPS.length,parseInt(qs.get('q'))||0)):null;
   const mobile=matchMedia('(pointer:coarse)').matches||Math.min(screen.width,screen.height)<500;
   if(mobile)CAP={shadow:2048,msaa:2,ao:.5,res:.85};
+  if(mobile&&o.still)CAP.res=1; /* static studio: frames are accumulated, full resolution is affordable */
   let level=forced!=null?forced:0;
   const SAFE={noMsaa:false,noAO:false,noPost:false,broken:'',stage:0,checks:[]};
   /* Apple GPUs (iOS / Safari on ANGLE-Metal): multisampled half-float targets report "complete" but render black
@@ -5680,6 +5684,10 @@ function create(o){
   let sceneRT=mk({depthBuffer:true,samples:isGL2?Q.msaa:0});
   const hdrA=mk({}),hdrB=mk({});
   const ldrA=new THREE.WebGLRenderTarget(4,4,{depthBuffer:false}),ldrB=ldrA.clone();
+  /* still accumulation (body view): jittered frames averaged → supersampled, noise-free, soft-shadow still image */
+  const finRT=ldrA.clone(),accA=mk({}),accB=mk({});
+  const ACC={on:false,n:0,max:24,done:false,cur:accA,hook:null};
+  const HAL=[];{const h=(i,b)=>{let f=1,r=0;while(i>0){f/=b;r+=f*(i%b);i=Math.floor(i/b);}return r;};for(let i=1;i<=64;i++)HAL.push([h(i,2)-.5,h(i,3)-.5]);}
 
   /* ---- passes ---- */
   const quad=new FullScreenQuad(null);
@@ -5768,7 +5776,7 @@ function create(o){
     W=w;H=h;pr=Math.max(.75,basePR*Q.res);R.setPixelRatio(pr);R.setSize(w,h,false);
     const bw=Math.max(1,Math.round(w*pr)),bh=Math.max(1,Math.round(h*pr));
     if(sceneRT.samples!==(isGL2?Q.msaa:0)){sceneRT.dispose();sceneRT=mk({depthBuffer:true,samples:isGL2?Q.msaa:0});}
-    [sceneRT,hdrA,hdrB,ldrA,ldrB].forEach(t=>t.setSize(bw,bh));
+    [sceneRT,hdrA,hdrB,ldrA,ldrB,finRT,accA,accB].forEach(t=>t.setSize(bw,bh));ACC.n=0;ACC.done=false;
     /* iOS Safari may not support multisampled half-float targets → verify, degrade, or give up (plain renderer) */
     if(!fbOK(sceneRT)&&sceneRT.samples>0){SAFE.noMsaa=true;Q.msaa=0;sceneRT.dispose();sceneRT=mk({depthBuffer:true,samples:0});sceneRT.setSize(bw,bh);SAFE.checks.push('msaa-fb-incomplete');}
     if(!fbOK(sceneRT)||!fbOK(hdrA)){SAFE.broken='half-float target unsupported';}
@@ -5794,7 +5802,7 @@ function create(o){
   /* ---------------- adaptive controller ---------------- */
   const AQ={win:0,frames:0,low:0,high:0,lockUntil:0,lastUp:0,fps:60};
   function adapt(now,dt){
-    if(forced!=null)return;
+    if(forced!=null||ACC.on)return;
     if(document.hidden||dt>2000){AQ.win=0;AQ.frames=0;return;} // tab switch / long pause only — slow frames must count
     AQ.win+=dt;AQ.frames++;
     if(AQ.win<1000)return;
@@ -5825,6 +5833,10 @@ function create(o){
     if(SAFE.broken)throw new Error('RX: '+SAFE.broken);
     frameNo++;
     const dt=now-lastNow;lastNow=now;adapt(now,dt);
+    const still=ACC.on;let bw=0,bh=0;
+    if(still){bw=Math.max(1,Math.round(W*pr));bh=Math.max(1,Math.round(H*pr));
+      if(ACC.n>0){const j=HAL[(ACC.n-1)%HAL.length];cam.setViewOffset(bw,bh,j[0],j[1],bw,bh);}
+      if(ACC.hook)ACC.hook(ACC.n);}
     CS.render();
     // 1. scene → HDR MSAA
     R.setRenderTarget(sceneRT);R.render(scene,cam);
@@ -5848,7 +5860,12 @@ function create(o){
     if(smaaOn){smaa.renderToScreen=false;smaa.render(R,ldrB,ldrA);}
     // 7. finish → screen
     finishM.uniforms.tLDR.value=ldrB.texture;finishM.uniforms.time.value=now*.001;
-    R.setRenderTarget(null);quad.material=finishM;quad.render(R);
+    R.setRenderTarget(still?finRT:null);quad.material=finishM;quad.render(R);
+    if(still){const src=ACC.cur,dst=ACC.cur===accA?accB:accA;
+      accM.uniforms.tA.value=src.texture;accM.uniforms.tN.value=finRT.texture;accM.uniforms.k.value=1/(ACC.n+1);
+      R.setRenderTarget(dst);quad.material=accM;quad.render(R);ACC.cur=dst;
+      R.setRenderTarget(null);copyM.uniforms.t.value=dst.texture;quad.material=copyM;quad.render(R);
+      if(ACC.n>0)cam.clearViewOffset();ACC.n++;if(ACC.n>=ACC.max)ACC.done=true;}
     if(frameNo===nextCheck){if(blackCheck()&&nextCheck<40)nextCheck=40;}
     if(dbg&&frameNo%30===0)dbgDraw();
   }
@@ -5865,7 +5882,9 @@ function create(o){
   R.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();level=Math.max(level,8);},false);
   R.domElement.addEventListener('webglcontextrestored',()=>{try{applyQ();PR.capture();}catch(e){console.error(e);}},false);
   applyQ();
-  const api={render,setSize,contact:CS,probe:PR,gtao,bloom,grade:gradeM.uniforms,finish:finishM.uniforms,
+  const accM=new THREE.ShaderMaterial({vertexShader:FSV,fragmentShader:'uniform sampler2D tA,tN;uniform float k;varying vec2 vUv;void main(){gl_FragColor=mix(texture2D(tA,vUv),texture2D(tN,vUv),k);}',uniforms:{tA:{value:null},tN:{value:null},k:{value:1}},depthTest:false,depthWrite:false});
+  const accum={set(on,max){ACC.on=!!on;if(max)ACC.max=max;ACC.n=0;ACC.done=false;},reset(){ACC.n=0;ACC.done=false;},get done(){return ACC.on&&ACC.done;},get n(){return ACC.n;},set hook(f){ACC.hook=f;}};
+  const api={render,setSize,accum,contact:CS,probe:PR,gtao,bloom,grade:gradeM.uniforms,finish:finishM.uniforms,
     setDof(amount,focus){dof.amount=amount;dof.focus=focus;},
     get level(){return level;},set level(n){level=Math.max(0,Math.min(STEPS.length,n));applyQ();},
     stats:()=>({level,fps:Math.round(AQ.fps),Q:Object.assign({},Q),pr:+pr.toFixed(2),safe:Object.assign({},SAFE,{checks:SAFE.checks.slice(-6)})})};
@@ -5876,6 +5895,347 @@ function create(o){
 return {create,STEPS};
 })();
 
+/* gym_fit.js — شکل‌دهی کاراکتر Rocketbox (اسکلت Bip01) بر اساس اندازه‌های واقعی بدن
+   ورودی: سانتی‌متر / کیلوگرم. همهٔ محاسبات در فضای bind (سانتی‌متر، y بالا، z جلو، x چپِ کاراکتر).
+   ۱) طول‌ها: قد، قد نشسته، فاصلهٔ دو دست، طول سگمنت‌ها، پهنای شانه/لگن → جابه‌جایی مفاصل + نگاشت LBS رأس‌ها
+   ۲) دورها: مقطع افقی/عمود بر استخوان → محیط پوستهٔ محدب (مثل متر نواری) → ضریب شعاعی هموار در طول بدن
+   ۳) وزن: حجم مش × چگالی (از درصد چربی) → ضریب سراسری برای نواحی بدون اندازه */
+const FIT=(()=>{
+'use strict';
+const NB=n=>n.replace(/^Bip0\d_/,'');
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const sstep=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+/* groups */
+const G={T:0,CL:1,CR:2,UL:3,UR:4,FL:5,FR:6,HL:7,HR:8,TL:9,TR:10,KL:11,KR:12,PL:13,PR:14,H:15};
+function grpOf(n){
+  if(/^(Pelvis|Spine|Spine1|Spine2|Neck)$/.test(n))return G.T;
+  const m=n.match(/^([LR])_(Clavicle|UpperArm|Forearm|Hand|Finger\d*|Thigh|Calf|Foot|Toe\d*)$/);
+  if(!m)return G.H;
+  const L=m[1]==='L',p=m[2];
+  if(p==='Clavicle')return L?G.CL:G.CR;if(p==='UpperArm')return L?G.UL:G.UR;if(p==='Forearm')return L?G.FL:G.FR;
+  if(/^(Hand|Finger)/.test(p))return L?G.HL:G.HR;if(p==='Thigh')return L?G.TL:G.TR;if(p==='Calf')return L?G.KL:G.KR;return L?G.PL:G.PR;
+}
+const CH={Pelvis:'Spine',Spine:'Spine1',Spine1:'Spine2',Spine2:'Neck',Neck:'Head',Clavicle:'UpperArm',UpperArm:'Forearm',Forearm:'Hand',Thigh:'Calf',Calf:'Foot',Foot:'Toe0'};
+
+function context(sk){
+  const geo=sk.geometry,pos=geo.attributes.position,si=geo.attributes.skinIndex,sw=geo.attributes.skinWeight,n=pos.count;
+  const bones=sk.skeleton.bones,names=bones.map(b=>NB(b.name)),idx={};names.forEach((x,i)=>idx[x]=i);
+  const V=new Float32Array(n*3),v=new THREE.Vector3();
+  for(let k=0;k<n;k++){v.fromBufferAttribute(pos,k).applyMatrix4(sk.bindMatrix);V[3*k]=v.x;V[3*k+1]=v.y;V[3*k+2]=v.z;}
+  const J=sk.skeleton.boneInverses.map(m=>new THREE.Vector3().setFromMatrixPosition(m.clone().invert()));
+  const SI=new Uint16Array(n*4),SW=new Float32Array(n*4),dom=new Int16Array(n),grp=new Uint8Array(n),bg=names.map(grpOf);
+  for(let k=0;k<n;k++){let best=-1,bw=-1;for(let j=0;j<4;j++){const b=si.getComponent(k,j),w=sw.getComponent(k,j);SI[4*k+j]=b;SW[4*k+j]=w;if(w>bw){bw=w;best=b;}}dom[k]=best;grp[k]=bg[best];}
+  const ix=geo.index?geo.index.array:null,nt=ix?ix.length/3:n/3;
+  const tri=new Uint32Array(nt*3);for(let t=0;t<nt*3;t++)tri[t]=ix?ix[t]:t;
+  return {sk,geo,n,names,idx,bg,V,J,SI,SW,dom,grp,tri,nt};
+}
+const jp=(c,name)=>c.J[c.idx[name]];
+
+/* ---------- geometry measures ---------- */
+function hull2(pts){ // pts: flat [u,v,...] → convex hull perimeter / extents
+  const m=pts.length/2;if(m<3)return null;
+  const P=[];for(let i=0;i<m;i++)P.push([pts[2*i],pts[2*i+1]]);
+  P.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);
+  const lo=[],up=[];
+  for(const p of P){while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p);}
+  for(let i=P.length-1;i>=0;i--){const p=P[i];while(up.length>=2&&cr(up[up.length-2],up[up.length-1],p)<=0)up.pop();up.push(p);}
+  const H=lo.slice(0,-1).concat(up.slice(0,-1));
+  let per=0,area=0,u0=1e9,u1=-1e9,v0=1e9,v1=-1e9;
+  for(let i=0;i<H.length;i++){const a=H[i],b=H[(i+1)%H.length];per+=Math.hypot(b[0]-a[0],b[1]-a[1]);area+=a[0]*b[1]-b[0]*a[1];
+    u0=Math.min(u0,a[0]);u1=Math.max(u1,a[0]);v0=Math.min(v0,a[1]);v1=Math.max(v1,a[1]);}
+  return {per,area:Math.abs(area)/2,w:u1-u0,d:v1-v0,cu:(u0+u1)/2,cv:(v0+v1)/2,n:H.length};
+}
+/* plane slice: point o, normal nrm, basis e1,e2; ok(vertexIndex) filter (2 of 3 vertices must pass); maxR limits distance from o */
+function slice(c,V,o,nrm,e1,e2,ok,maxR){
+  const pts=[],T=c.tri,s=new Float32Array(3);
+  for(let t=0;t<c.nt;t++){
+    const a=T[3*t],b=T[3*t+1],d=T[3*t+2];
+    const pa=ok(a),pb=ok(b),pd=ok(d);if(pa+pb+pd<2)continue;
+    const ids=[a,b,d];let pos=0,neg=0;
+    for(let i=0;i<3;i++){const k=ids[i];s[i]=(V[3*k]-o.x)*nrm.x+(V[3*k+1]-o.y)*nrm.y+(V[3*k+2]-o.z)*nrm.z;if(s[i]>0)pos++;else neg++;}
+    if(!pos||!neg)continue;
+    for(let i=0;i<3;i++){const j=(i+1)%3;if((s[i]>0)===(s[j]>0))continue;
+      const k=ids[i],l=ids[j],f=s[i]/(s[i]-s[j]);
+      const x=V[3*k]+(V[3*l]-V[3*k])*f-o.x,y=V[3*k+1]+(V[3*l+1]-V[3*k+1])*f-o.y,z=V[3*k+2]+(V[3*l+2]-V[3*k+2])*f-o.z;
+      const u=x*e1.x+y*e1.y+z*e1.z,w=x*e2.x+y*e2.y+z*e2.z;
+      if(maxR&&u*u+w*w>maxR*maxR)continue;pts.push(u,w);}
+  }
+  return hull2(pts);
+}
+const EX=new THREE.Vector3(1,0,0),EY=new THREE.Vector3(0,1,0),EZ=new THREE.Vector3(0,0,1);
+function hslice(c,V,y,ok,xmax){const r=slice(c,V,new THREE.Vector3(0,y,0),EY,EX,EZ,xmax?(k=>ok(k)&&Math.abs(V[3*k])<xmax):ok);return r;}
+function volume(c,V){let s=0;const T=c.tri;
+  for(let t=0;t<c.nt;t++){const a=3*T[3*t],b=3*T[3*t+1],d=3*T[3*t+2];
+    s+=V[a]*(V[b+1]*V[d+2]-V[b+2]*V[d+1])-V[a+1]*(V[b]*V[d+2]-V[b+2]*V[d])+V[a+2]*(V[b]*V[d+1]-V[b+1]*V[d]);}
+  return Math.abs(s)/6000; // litres
+}
+function yRange(V){let a=1e9,b=-1e9;for(let k=1;k<V.length;k+=3){if(V[k]<a)a=V[k];if(V[k]>b)b=V[k];}return [a,b];}
+
+/* ---------- landmarks on the current shape ---------- */
+function landmarks(c,V,Jn){
+  const J=n=>Jn[c.idx[n]];
+  const g=c.grp,H=yRange(V);const top=H[1],floor=H[0],stature=top-floor;
+  const pel=J('Pelvis'),sp1=J('Spine1'),sp2=J('Spine2'),nk=J('Neck'),hd=J('Head');
+  // crotch: lowest torso vertex near the mid-sagittal line
+  let crotch=pel.y;for(let k=0;k<c.n;k++){if(g[k]!==G.T)continue;if(Math.abs(V[3*k])<1.6&&V[3*k+1]<crotch)crotch=V[3*k+1];}
+  const torsoOK=k=>g[k]<=G.CR, hipOK=k=>g[k]===G.T||g[k]===G.TL||g[k]===G.TR;
+  const xarm=Math.abs(J('L_UpperArm').x)*.98;
+  const scan=(y0,y1,ok,best,xm)=>{let by=y0,bp=best>0?-1:1e9,st=(y1-y0)/24;for(let y=y0;y<=y1+1e-6;y+=st){const r=hslice(c,V,y,ok,xm);if(!r)continue;if(best>0?r.per>bp:r.per<bp){bp=r.per;by=y;}}return by;};
+  const yChest=scan(sp1.y+.15*(sp2.y-sp1.y),sp2.y+.25*(nk.y-sp2.y),torsoOK,1,xarm);
+  const yWaist=scan(pel.y+.35*(J('Spine').y-pel.y),sp1.y+.5*(sp2.y-sp1.y),torsoOK,-1,xarm);
+  const yHip=scan(crotch+1.5,pel.y+.45*(J('Spine').y-pel.y),hipOK,1,xarm);
+  const yNeck=nk.y+.3*(hd.y-nk.y);
+  const yIliac=Math.min(yWaist-1,pel.y+.06*stature);
+  return {top,floor,stature,crotch,yChest,yWaist,yHip,yNeck,yIliac,xarm};
+}
+/* limb frame: joint a → b; returns plane at parameter t (0..1) */
+function limbPlane(a,b,t){const d=b.clone().sub(a);const L=d.length();d.normalize();
+  const e1=Math.abs(d.y)<.9?new THREE.Vector3().crossVectors(d,EY).normalize():new THREE.Vector3().crossVectors(d,EX).normalize();
+  const e2=new THREE.Vector3().crossVectors(d,e1).normalize();return {o:a.clone().addScaledVector(d,t*L),n:d,e1,e2,L};}
+
+/* ---------- all model measurements (cm) ---------- */
+function measureAll(c,V,Jn,lm,fx){
+  lm=lm||landmarks(c,V,Jn);const J=n=>Jn[c.idx[n]],g=c.grp,out={lm};
+  const torsoOK=k=>g[k]<=G.CR, hipOK=k=>g[k]===G.T||g[k]===G.TL||g[k]===G.TR;
+  const neckOK=k=>c.names[c.dom[k]]==='Neck'||c.names[c.dom[k]]==='Spine2';
+  out.chest=hslice(c,V,lm.yChest,torsoOK,lm.xarm);out.waist=hslice(c,V,lm.yWaist,torsoOK,lm.xarm);
+  out.hip=hslice(c,V,lm.yHip,hipOK,lm.xarm);out.neck=hslice(c,V,lm.yNeck,neckOK,lm.stature*.06);
+  out.iliac=hslice(c,V,lm.yIliac,torsoOK,lm.xarm);
+  const lim=(sd,a,b,t,grps,R)=>{const p=limbPlane(J(sd+'_'+a),J(sd+'_'+b),t);return slice(c,V,p.o,p.n,p.e1,p.e2,k=>grps.includes(g[k]),R||p.L*.6);};
+  const L='L',GL={UA:[G.UL,G.CL],FA:[G.FL,G.UL,G.HL],TH:[G.TL,G.T],CA:[G.KL,G.TL,G.PL]};
+  out.biceps=lim(L,'UpperArm','Forearm',.5,GL.UA);
+  // forearm max (t .12–.4), wrist min (t .86–.97)
+  let fb=null,ft=.25;for(let t=fx?fx.tForearm:.12;t<=(fx?fx.tForearm:.4)+1e-6;t+=.04){const r=lim(L,'Forearm','Hand',t,GL.FA);if(r&&(!fb||r.per>fb.per)){fb=r;ft=t;}}out.forearm=fb;out.tForearm=ft;
+  let wb=null,wt=.92;for(let t=fx?fx.tWrist:.86;t<=(fx?fx.tWrist:.975)+1e-6;t+=.02){const r=lim(L,'Forearm','Hand',t,GL.FA);if(r&&(!wb||r.per<wb.per)){wb=r;wt=t;}}out.wrist=wb;out.tWrist=wt;
+  // thigh: 1 cm below the gluteal fold ≈ 2.5 cm below the crotch, plane ⟂ thigh axis
+  const th=J('L_Thigh'),kn=J('L_Calf'),thL=th.distanceTo(kn);
+  const tTh=clamp((th.y-(lm.crotch-2.5))/Math.max(1,th.y-kn.y),.04,.4);out.tThigh=tTh;
+  out.thigh=lim(L,'Thigh','Calf',tTh,[G.TL,G.T],thL*.3);
+  out.midthigh=lim(L,'Thigh','Calf',.5,[G.TL],thL*.3);
+  let cb=null,ct=.3;for(let t=fx?fx.tCalf:.12;t<=(fx?fx.tCalf:.42)+1e-6;t+=.03){const r=lim(L,'Calf','Foot',t,[G.KL]);if(r&&(!cb||r.per>cb.per)){cb=r;ct=t;}}out.calf=cb;out.tCalf=ct;
+  let ab=null,at=.86;for(let t=fx?fx.tAnkle:.72;t<=(fx?fx.tAnkle:.9)+1e-6;t+=.02){const r=lim(L,'Calf','Foot',t,[G.KL]);if(r&&(!ab||r.per<ab.per)){ab=r;at=t;}}out.ankle=ab;out.tAnkle=at;
+  // lengths
+  out.L={uarm:J('L_UpperArm').distanceTo(J('L_Forearm')),farm:J('L_Forearm').distanceTo(J('L_Hand')),thigh:thL,shank:kn.distanceTo(J('L_Foot')),
+    shW:Math.abs(J('L_UpperArm').x-J('R_UpperArm').x),hipJ:Math.abs(J('L_Thigh').x-J('R_Thigh').x)};
+  // hand length: wrist joint → farthest hand vertex along the hand direction; foot length: heel → toe tip
+  {const h=J('L_Hand'),f2=J('L_Finger2'),d=f2.clone().sub(h).normalize();let m=0;for(let k=0;k<c.n;k++){if(g[k]!==G.HL)continue;const s=(V[3*k]-h.x)*d.x+(V[3*k+1]-h.y)*d.y+(V[3*k+2]-h.z)*d.z;if(s>m)m=s;}out.L.hand=m;}
+  {let z0=1e9,z1=-1e9;for(let k=0;k<c.n;k++){if(g[k]!==G.PL)continue;const z=V[3*k+2];if(z<z0)z0=z;if(z>z1)z1=z;}out.L.foot=z1-z0;}
+  out.L.span=2*(Math.abs(J('L_UpperArm').x)+out.L.uarm+out.L.farm+out.L.hand);
+  out.L.sit=lm.top-lm.crotch;out.vol=volume(c,V);
+  return out;
+}
+
+/* ================= 1. lengths ================= */
+function fitLengths(c,T,rep){
+  const V0=c.V,J0=c.J,lm=landmarks(c,V0,J0),M0=measureAll(c,V0,J0,lm),P=n=>J0[c.idx[n]];
+  const H0=lm.stature,H=T.height||H0,g=H/H0,sHead=Math.pow(g,.4);
+  // shoulders (biacromial ≈ shoulder-joint distance + 3.5 cm)
+  const clX=P('L_Clavicle').x,uaX=P('L_UpperArm').x;
+  let sClav=g;if(T.biac){sClav=clamp(((T.biac-3.5)/2-g*clX)/(uaX-clX),g*.7,g*1.4);}
+  const halfSh=g*clX+sClav*(uaX-clX);
+  // arms: explicit lengths > arm span > height
+  let kArm=g;if(T.span){kArm=clamp((T.span/2-halfSh)/(M0.L.uarm+M0.L.farm+M0.L.hand),g*.85,g*1.18);}
+  const sUA=T.uarmL?clamp(T.uarmL/M0.L.uarm,.6,1.5):kArm, sFA=T.farmL?clamp(T.farmL/M0.L.farm,.6,1.5):kArm, sHand=T.handL?clamp(T.handL/M0.L.hand,.6,1.5):kArm;
+  const sFoot=T.footL?clamp(T.footL/M0.L.foot,.6,1.5):g;
+  const sPx=T.biil?g*clamp(T.biil/(1.62*M0.L.hipJ*g),.85,1.2):g;
+  // legs: explicit segment lengths > sitting height > height
+  const thV=P('L_Thigh').y-P('L_Calf').y, shV=P('L_Calf').y-P('L_Foot').y, ankH=P('L_Foot').y-lm.floor, pelDrop=P('Pelvis').y-lm.crotch;
+  let sTh=g,sSh=g;
+  if(T.thighL||T.shankL){sTh=T.thighL?clamp(T.thighL/M0.L.thigh,.6,1.5):g;sSh=T.shankL?clamp(T.shankL/M0.L.shank,.6,1.5):g;}
+  else if(T.sit){const legT=H-T.sit; // crotch height target
+    // crotch = ankH*sFoot + (thV+shV)*sLeg - pelDrop*sT ; sT is solved below — first guess sT=g
+    let sT=g;for(let i=0;i<3;i++){const sLeg=clamp((legT-ankH*sFoot+pelDrop*sT)/(thV+shV),g*.85,g*1.15);sTh=sSh=sLeg;
+      const crN=ankH*sFoot+(thV+shV)*sLeg-pelDrop*sT;sT=(H-crN-(lm.top-P('Head').y)*sHead)/(P('Head').y-lm.crotch);}}
+  const crN=ankH*sFoot+thV*sTh+shV*sSh-pelDrop*g;
+  let sT=(H-crN-(lm.top-P('Head').y)*sHead-pelDrop*0)/(P('Head').y-lm.crotch);
+  sT=clamp(sT,g*.8,g*1.25);
+  let res=null;
+  for(let pass=0;pass<4;pass++){
+  res=build(sT,sTh,sSh);
+  const lmN=landmarks(c,res.V1,res.N),dH=H-lmN.stature,torso=P('Head').y-lm.crotch;
+  let dS=0;if(T.sit&&!(T.thighL||T.shankL)){dS=(lmN.top-lmN.crotch)-T.sit;}
+  if(Math.abs(dH)<.12&&Math.abs(dS)<.15)break;
+  if(dS){const legV=thV+shV;sTh+=dS/legV;sSh=sTh;}
+  sT+=(dH-dS)/torso;
+  }
+  rep.S={g,sHead,sClav,sUA,sFA,sHand,sFoot,sPx,sTh,sSh,sT};rep.before=M0;
+  return res;
+  function build(sT,sTh,sSh){
+  const S={g,sHead,sClav,sUA,sFA,sHand,sFoot,sPx,sTh,sSh,sT};
+  // per-bone linear maps: axial a along d, radial r ⟂ d (or uniform u)
+  const nb=c.names.length,MA=new Array(nb);
+  for(let i=0;i<nb;i++){const n=c.names[i],base=n.replace(/^[LR]_/,''),side=(n.match(/^([LR])_/)||[])[1];
+    let ch=CH[base];const ci=ch?c.idx[(side&&!/^(Spine|Neck|Head)/.test(ch)?side+'_':'')+ch]:undefined;
+    const d=ci!=null?J0[ci].clone().sub(J0[i]).normalize():null;let m;
+    if(/^(Pelvis|Spine|Spine1|Spine2|Neck)$/.test(base))m={d:EY.clone(),a:sT,r:g};
+    else if(base==='Clavicle')m={d,a:sClav,r:g};
+    else if(base==='UpperArm')m={d,a:sUA,r:g};
+    else if(base==='Forearm')m={d,a:sFA,r:g};
+    else if(/^(Hand|Finger)/.test(base))m={u:sHand};
+    else if(base==='Thigh')m={d,a:sTh,r:g};
+    else if(base==='Calf')m={d,a:sSh,r:g};
+    else if(/^(Foot|Toe)/.test(base))m={u:sFoot};
+    else m={u:sHead};
+    MA[i]=m;}
+  const map=(m,x,out)=>{if(m.u!=null)return out.copy(x).multiplyScalar(m.u);const s=x.dot(m.d);return out.copy(x).multiplyScalar(m.r).addScaledVector(m.d,(m.a-m.r)*s);};
+  // new joint positions, hierarchical
+  const N=J0.map(v=>v.clone()),bones=c.sk.skeleton.bones,tmp=new THREE.Vector3(),tmp2=new THREE.Vector3();
+  const order=[];(function walk(b){const i=bones.indexOf(b);if(i>=0)order.push(i);b.children.forEach(walk);})(bones[c.idx.Pelvis].parent&&bones.indexOf(bones[c.idx.Pelvis].parent)<0?bones[c.idx.Pelvis]:bones[c.idx.Pelvis]);
+  bones.forEach((b,i)=>{if(!order.includes(i))order.push(i);});
+  for(const i of order){const b=bones[i],pi=bones.indexOf(b.parent);if(pi<0)continue;
+    tmp.copy(J0[i]).sub(J0[pi]);
+    if(/^[LR]_Thigh$/.test(c.names[i])&&c.names[pi]==='Pelvis')tmp2.set(tmp.x*sPx,tmp.y*sT,tmp.z*g);else map(MA[pi],tmp,tmp2);
+    N[i].copy(N[pi]).add(tmp2);}
+  // vertices
+  const V1=new Float32Array(V0.length),x=new THREE.Vector3(),acc=new THREE.Vector3(),o=new THREE.Vector3();
+  for(let k=0;k<c.n;k++){acc.set(0,0,0);let ws=0;
+    for(let j=0;j<4;j++){const w=c.SW[4*k+j];if(!w)continue;const bi=c.SI[4*k+j];
+      x.set(V0[3*k]-J0[bi].x,V0[3*k+1]-J0[bi].y,V0[3*k+2]-J0[bi].z);map(MA[bi],x,o);acc.addScaledVector(o.add(N[bi]),w);ws+=w;}
+    acc.multiplyScalar(1/(ws||1));V1[3*k]=acc.x;V1[3*k+1]=acc.y;V1[3*k+2]=acc.z;}
+  // stand on the floor (y = 0) like the original
+  const fl=yRange(V1)[0]-lm.floor;for(let k=1;k<V1.length;k+=3)V1[k]-=fl;N.forEach(v=>v.y-=fl);
+  return {V1,N};
+  }
+}
+
+/* ================= 2–3. girths & weight ================= */
+function fitGirths(c,V1,N,T,rep){
+  const g=c.grp,J=n=>N[c.idx[n]];
+  const lm=landmarks(c,V1,N);
+  // torso profile control levels (y ascending)
+  const head=J('Head').y;
+  const lv=[{k:'hip',y:lm.yHip},{k:'iliac',y:lm.yIliac},{k:'waist',y:lm.yWaist},{k:'chest',y:lm.yChest},{k:'neck',y:lm.yNeck}];
+  lv.sort((a,b)=>a.y-b.y);
+  const F={};['hip','iliac','waist','chest','neck'].forEach(k=>F[k]={x:1,z:1});
+  const LF={biceps:1,forearm:1,wrist:1,delt:1,thigh:1,midthigh:1,calf:1,ankle:1};
+  let kFree=1; // weight-driven factor for levels without a measurement
+  const has=k=>T[k]>0;
+  const free={hip:!has('hip')&&!has('w_hip'),iliac:!has('biil'),waist:!has('waist')&&!has('w_waist'),chest:!has('chest')&&!has('w_chest')&&!has('chestB'),neck:!has('neck'),
+    biceps:!has('biceps'),forearm:!has('forearm'),wrist:!has('wrist'),thigh:!has('thigh'),midthigh:!has('midthigh'),calf:!has('calf'),ankle:!has('ankle')};
+  const tf=(k)=>{const f=F[k];return {x:f.x*(free[k]?kFree:1),z:f.z*(free[k]?kFree:1)};};
+  const lf=(k)=>{let f=LF[k];if(free[k]){ // free limb levels lean half-way toward their measured neighbour
+      const nb={forearm:'biceps',wrist:'forearm',midthigh:'thigh',ankle:'calf'}[k];if(nb&&!free[nb])f=Math.pow(LF[nb],/wrist|ankle/.test(k)?.25:.5);
+      f*=Math.pow(kFree,/wrist|ankle/.test(k)?.3:/forearm/.test(k)?.7:1);} /* bony sites barely change with body mass */
+    return f;};
+  function torsoAt(y){ // piecewise smooth interpolation of (fx,fz)
+    if(y>=head)return {x:1,z:1};
+    const L=lv.map(l=>({y:l.y,f:tf(l.k)}));
+    if(y<=L[0].y)return L[0].f;
+    const nk=L[L.length-1];if(y>=nk.y){const t=sstep(nk.y,head,y);return {x:nk.f.x+(1-nk.f.x)*t,z:nk.f.z+(1-nk.f.z)*t};}
+    for(let i=0;i<L.length-1;i++)if(y<=L[i+1].y){const t=sstep(L[i].y,L[i+1].y,y);return {x:L[i].f.x+(L[i+1].f.x-L[i].f.x)*t,z:L[i].f.z+(L[i+1].f.z-L[i].f.z)*t};}
+    return nk.f;}
+  const piece=(pts,t)=>{if(t<=pts[0][0])return pts[0][1];for(let i=0;i<pts.length-1;i++)if(t<=pts[i+1][0]){const u=sstep(pts[i][0],pts[i+1][0],t);return pts[i][1]+(pts[i+1][1]-pts[i][1])*u;}return pts[pts.length-1][1];};
+  let M=null;const czAt=(y)=>{ // torso centre (z) per level, from the last measurement
+    if(!M)return 0;const L=lv.map(l=>({y:l.y,z:(M[l.k]&&M[l.k].cv)||0}));if(y<=L[0].y)return L[0].z;if(y>=L[L.length-1].y)return L[L.length-1].z;
+    for(let i=0;i<L.length-1;i++)if(y<=L[i+1].y){const t=(y-L[i].y)/(L[i+1].y-L[i].y);return L[i].z+(L[i+1].z-L[i].z)*t;}return 0;};
+  const V=new Float32Array(V1.length);
+  const segs={};for(const sd of ['L','R'])segs[sd]={UA:[J(sd+'_UpperArm'),J(sd+'_Forearm')],FA:[J(sd+'_Forearm'),J(sd+'_Hand')],HA:[J(sd+'_Hand'),J(sd+'_Finger2')],TH:[J(sd+'_Thigh'),J(sd+'_Calf')],CA:[J(sd+'_Calf'),J(sd+'_Foot')],FT:[J(sd+'_Foot'),J(sd+'_Toe0')]};
+  const p=new THREE.Vector3(),q=new THREE.Vector3(),ab=new THREE.Vector3(),d=new THREE.Vector3();
+  function radial(seg,k,f){ // displacement away from the segment axis, scaled (f-1)
+    const a=seg[0],b=seg[1];ab.subVectors(b,a);p.set(V1[3*k],V1[3*k+1],V1[3*k+2]);
+    const t=clamp(p.clone().sub(a).dot(ab)/ab.lengthSq(),0,1);q.copy(a).addScaledVector(ab,t);return {t,v:p.sub(q).multiplyScalar(f-1)};}
+  function tParam(seg,k){ab.subVectors(seg[1],seg[0]);return (V1[3*k]-seg[0].x)*ab.x/ab.lengthSq()+(V1[3*k+1]-seg[0].y)*ab.y/ab.lengthSq()+(V1[3*k+2]-seg[0].z)*ab.z/ab.lengthSq();}
+  let tFA=.25,tWR=.92,tTH=.15,tCA=.3,tAN=.88;
+  function apply(){
+    const thighTopY=lm.crotch-2.5;
+    const ankY=Math.max(J('L_Foot').y,J('R_Foot').y);
+    for(let k=0;k<c.n;k++){
+      const x=V1[3*k],y=V1[3*k+1],z=V1[3*k+2];d.set(0,0,0);let ws=0;
+      for(let j=0;j<4;j++){const w=c.SW[4*k+j];if(!w)continue;ws+=w;const bi=c.SI[4*k+j],gr=c.bg[bi];
+        if(gr<=G.CR){const f=torsoAt(y);d.x+=w*(f.x-1)*x;d.z+=w*(f.z-1)*(z-czAt(y));}
+        else if(gr===G.UL||gr===G.UR){const sg=segs[gr===G.UL?'L':'R'];const t=tParam(sg.UA,k);
+          const f=piece([[0,1+(lf('delt')-1)*.5],[.18,lf('delt')*.5+lf('biceps')*.5],[.5,lf('biceps')],[1,(lf('biceps')+lf('forearm'))/2]],t);d.add(radial(sg.UA,k,f).v.multiplyScalar(w));}
+        else if(gr===G.FL||gr===G.FR){const sg=segs[gr===G.FL?'L':'R'];const t=tParam(sg.FA,k);
+          const f=piece([[0,(lf('biceps')+lf('forearm'))/2],[tFA,lf('forearm')],[tWR,lf('wrist')],[1,lf('wrist')]],t);d.add(radial(sg.FA,k,f).v.multiplyScalar(w));}
+        else if(gr===G.HL||gr===G.HR){const sg=segs[gr===G.HL?'L':'R'];const t=tParam(sg.HA,k);const f=lf('wrist')+(1-lf('wrist'))*sstep(0,.45,t);d.add(radial(sg.HA,k,f).v.multiplyScalar(w));}
+        else if(gr===G.TL||gr===G.TR){const sg=segs[gr===G.TL?'L':'R'];const t=tParam(sg.TH,k);
+          const kneeF=1+((lf('midthigh')+lf('calf'))/2-1)*.6;
+          let f=piece([[0,lf('thigh')],[tTH,lf('thigh')],[.5,lf('midthigh')],[1,kneeF]],t);
+          // buttocks / upper thigh above the gluteal fold follow the hip girth
+          const tw=sstep(thighTopY,lm.yHip,y);if(tw>0){const h=torsoAt(y);const hf=(h.x+h.z)/2;f=f+(hf-f)*tw;}
+          d.add(radial(sg.TH,k,f).v.multiplyScalar(w));}
+        else if(gr===G.KL||gr===G.KR){const sg=segs[gr===G.KL?'L':'R'];const t=tParam(sg.CA,k);
+          const kneeF=1+((lf('midthigh')+lf('calf'))/2-1)*.6;
+          const f=piece([[0,kneeF],[tCA,lf('calf')],[tAN,lf('ankle')],[1,lf('ankle')]],t);d.add(radial(sg.CA,k,f).v.multiplyScalar(w));}
+        else if(gr===G.PL||gr===G.PR){const sg=segs[gr===G.PL?'L':'R'];const t=tParam(sg.FT,k);const f=lf('ankle')+(1-lf('ankle'))*sstep(-.1,.3,t);d.add(radial(sg.FT,k,f).v.multiplyScalar(w));}
+      }
+      if(ws>0&&ws!==1)d.multiplyScalar(1/ws);
+      if(y<ankY)d.y*=sstep(ankY-4,ankY,y);
+      V[3*k]=x+d.x;V[3*k+1]=y+d.y;V[3*k+2]=z+d.z;}
+  }
+  const elP=(a,b)=>Math.PI*(3*(a+b)-Math.sqrt((3*a+b)*(a+3*b)));
+  function solveZ(m,fx,Pt){ // given width factor fx, find depth factor so that the scaled hull perimeter ≈ Pt (ellipse model)
+    const a=m.w/2,b=m.d/2,P0=elP(a,b),ratio=m.per/P0;let lo=.4,hi=2.5;
+    for(let i=0;i<40;i++){const mid=(lo+hi)/2;if(elP(a*fx,b*mid)*ratio<Pt)lo=mid;else hi=mid;}return (lo+hi)/2;}
+  const M0s=measureAll(c,V1,N,lm);
+  const FX={tForearm:M0s.tForearm,tWrist:M0s.tWrist,tCalf:M0s.tCalf,tAnkle:M0s.tAnkle};
+  const meas=()=>{apply();return measureAll(c,V,N,lm,FX);};
+  // tissue thickness at the iliac crest for the bony breadth (per side, cm)
+  const tissue=T.sf_iliac?T.sf_iliac/20+.5:1.5;
+  const TT={chest:{P:T.chest,W:T.w_chest||(T.chestB?T.chestB+1:0),D:T.d_chest},waist:{P:T.waist,W:T.w_waist,D:T.d_waist},hip:{P:T.hip,W:T.w_hip,D:T.d_hip},
+    neck:{P:T.neck},iliac:{W:T.biil?T.biil+2*tissue:0}};
+  const LT={biceps:T.biceps,forearm:T.forearm,wrist:T.wrist,thigh:T.thigh,midthigh:T.midthigh,calf:T.calf,ankle:T.ankle};
+  const shoe=M0s.ankle&&M0s.calf&&M0s.ankle.per/M0s.calf.per>.72;if(shoe){LT.ankle=0;free.ankle=false;}
+  rep.shoe=shoe;
+  const targetVol=T.weight?T.weight/(495/((T.bf||20)+450)):0; // litres (Siri density)
+  for(let outer=0;outer<4;outer++){
+    for(let it=0;it<3;it++){
+      M=meas();tFA=M.tForearm;tWR=M.tWrist;tTH=M.tThigh;tCA=M.tCalf;tAN=M.tAnkle;
+      for(const k in TT){const t=TT[k],m=M[k];if(!m)continue;const f=F[k];
+        if(t.W&&t.D&&t.P){const rx=t.W/m.w*f.x,rz=t.D/m.d*f.z;const fx0=t.W/m.w,fz0=solveZ(m,fx0,t.P);f.x*=fx0;f.z*=fz0;if(!(fz0>0))f.z=rz;}
+        else if(t.W&&t.P){const fx0=t.W/m.w;f.x*=fx0;f.z*=solveZ(m,fx0,t.P);}
+        else if(t.P){const r=t.P/m.per;f.x*=r;f.z*=r;}
+        else if(t.W){const r=t.W/m.w;f.x*=r;}
+        f.x=clamp(f.x,.55,1.9);f.z=clamp(f.z,.55,1.9);}
+      for(const k in LT){if(!LT[k]||!M[k])continue;LF[k]=clamp(LF[k]*LT[k]/M[k].per,.55,1.9);}
+    }
+    if(!targetVol)break;
+    M=meas();const v0=M.vol;if(Math.abs(v0-targetVol)/targetVol<.004)break;
+    // secant on the free factor
+    const k0=kFree;kFree=clamp(kFree*(1+.01),.6,1.7);const v1=meas().vol;
+    const dv=(v1-v0)/(kFree-k0);kFree=clamp(k0+(targetVol-v0)/(Math.abs(dv)>1e-6?dv:1),.62,1.65);
+    const nFree=Object.values(free).filter(Boolean).length;if(nFree<7)kFree=clamp(kFree,.85,1.2);
+  }
+  M=meas();
+  rep.FX=FX;rep.F=F;rep.LF=LF;rep.kFree=kFree;rep.after=M;rep.targetVol=targetVol;
+  return V;
+}
+
+/* ================= write back ================= */
+function commit(c,V,N){
+  const sk=c.sk,pos=c.geo.attributes.position,bmi=sk.bindMatrixInverse,v=new THREE.Vector3();
+  for(let k=0;k<c.n;k++){v.set(V[3*k],V[3*k+1],V[3*k+2]).applyMatrix4(bmi);pos.setXYZ(k,v.x,v.y,v.z);}
+  pos.needsUpdate=true;c.geo.computeBoundingSphere();c.geo.computeBoundingBox();
+  // bones: keep world rotations, move joints to N (hierarchy order), then rebuild inverse bind matrices
+  const bones=sk.skeleton.bones,root=bones[c.idx.Pelvis];let top=root;while(top.parent&&top.parent.isBone)top=top.parent;
+  top.parent&&top.parent.updateMatrixWorld(true);
+  const visit=b=>{const i=bones.indexOf(b);if(i>=0&&b.parent){b.parent.updateMatrixWorld(true);const lp=b.parent.worldToLocal(N[i].clone());b.position.copy(lp);b.updateMatrixWorld(true);}b.children.forEach(visit);};
+  visit(top);
+  sk.skeleton.calculateInverses();
+}
+
+/* public: fit skinned mesh (fresh FBX parse, root at identity) to targets T; returns report */
+function apply(sk,T){
+  const rep={};
+  sk.geometry=sk.geometry.clone();
+  const c=context(sk);
+  const {V1,N}=fitLengths(c,T,rep);
+  const V=fitGirths(c,V1,N,T,rep);
+  commit(c,V,N);
+  rep.model=summarize(rep.after);rep.model0=summarize(rep.before);
+  return rep;
+}
+function summarize(M){const r=x=>x?Math.round(x.per*10)/10:null;
+  return {height:Math.round(M.lm.stature*10)/10,sit:Math.round(M.L.sit*10)/10,span:Math.round(M.L.span*10)/10,neck:r(M.neck),chest:r(M.chest),waist:r(M.waist),hip:r(M.hip),
+    biceps:r(M.biceps),forearm:r(M.forearm),wrist:r(M.wrist),thigh:r(M.thigh),midthigh:r(M.midthigh),calf:r(M.calf),ankle:r(M.ankle),vol:Math.round(M.vol*10)/10,
+    w_chest:M.chest&&+M.chest.w.toFixed(1),d_chest:M.chest&&+M.chest.d.toFixed(1),w_waist:M.waist&&+M.waist.w.toFixed(1),d_waist:M.waist&&+M.waist.d.toFixed(1),w_hip:M.hip&&+M.hip.w.toFixed(1),d_hip:M.hip&&+M.hip.d.toFixed(1),
+    biac:Math.round((M.L.shW+3.5)*10)/10,uarmL:+M.L.uarm.toFixed(1),farmL:+M.L.farm.toFixed(1),handL:+M.L.hand.toFixed(1),thighL:+M.L.thigh.toFixed(1),shankL:+M.L.shank.toFixed(1),footL:+M.L.foot.toFixed(1),
+    lm:{chest:M.lm.yChest,waist:M.lm.yWaist,hip:M.lm.yHip,neck:M.lm.yNeck,crotch:M.lm.crotch,iliac:M.lm.yIliac}};}
+function measureSk(sk){const c=context(sk);return summarize(measureAll(c,c.V,c.J));}
+return {apply,measure:measureSk,_ctx:context,_measureAll:measureAll,_slice:slice,_lp:limbPlane,G};
+})();
+
 'use strict';
 /* بدن هوشمند — پرس سینه با مدل انسانی واقع‌گرا
    موتور: IK پارامتری → نگاشت جهت استخوان‌ها روی اسکلت Bip01 (Microsoft Rocketbox, MIT) */
@@ -5883,6 +6243,8 @@ const V=(x,y,z)=>new THREE.Vector3(x,y,z);
 /* PuttClub Gym app: ?embed=1 → full-screen stage without side panel; ?p=m|f|g|t → athlete profile */
 const QP=new URLSearchParams((location.search||location.hash.replace('#','?')));const P0=/^[mfgt]$/.test(QP.get('p')||'')?QP.get('p'):'m';
 if(QP.has('embed'))document.body.classList.add('embed');
+/* #view=body → استودیوی بدن: کاراکتر ایستا، شکل‌گرفته با اندازه‌های عضو (postMessage) */
+const BODY=QP.get('view')==='body';if(BODY)document.body.classList.add('bodyv');
 const D=Math.PI/180;
 const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -6261,18 +6623,25 @@ const SBU={uMus:{value:0},uHideHair:{value:0},uLoad:{value:new Float32Array(24)}
 let LOGO_TEX=null;function logoTex(){if(!LOGO_TEX){LOGO_TEX=new THREE.TextureLoader().load(ASSET.logo);LOGO_TEX.anisotropy=8;}return LOGO_TEX;}
 function b64ab(s){const bin=atob(s);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u.buffer;}
 const texL=new THREE.TextureLoader();
-function tex(uri,srgb){const t=texL.load(uri);if(srgb)t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return t;}
+const TEXC=new Map();
+function tex(uri,srgb){const key=(srgb?'s':'l')+uri.length+uri.slice(-80);if(TEXC.has(key))return TEXC.get(key);const t=texL.load(uri);if(srgb)t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=BODY?8:4;TEXC.set(key,t);return t;}
 const RIGS={};
-function buildRig(pk){
-  const P=PROF[pk];if(RIGS[pk])return RIGS[pk];
+/* leanness 0.15..1 from body-fat % → how much of the template's athletic sculpt / skin detail to keep */
+function leanK(pk,bf){if(!(bf>0))return 1;const fem=pk==='f'||pk==='g';return Math.max(.15,Math.min(1,((fem?36:28)-bf)/16));}
+function buildRig(pk,T){
+  const P=PROF[pk];if(!T&&RIGS[pk])return RIGS[pk];
   const A=ASSETS[P.asset];
   const obj=new FBXLoader().parse(b64ab(A.fbx),'');
-  obj.scale.setScalar(.01*P.scale);
+  const UNIT=T?.01:.01*P.scale;obj.scale.setScalar(T?1:UNIT);
   let skinned=null;
   obj.traverse(c=>{if(c.isSkinnedMesh||c.isMesh){skinned=c.isSkinnedMesh?c:skinned;c.castShadow=true;c.receiveShadow=true;c.frustumCulled=false;}});
   const bones={};obj.traverse(c=>{if(c.isBone){c.name=c.name.replace(/^Bip0\d/,'Bip01');bones[c.name]=c;}});
-  if(skinned&&P.fit)sculpt(skinned,P.fit);
-  const anatFit=P.fit;
+  const lean=T?leanK(pk,T.bf):1;
+  const fitM=P.fit&&Object.fromEntries(Object.entries(P.fit).map(([k,v])=>[k,1+(v-1)*lean]));
+  if(skinned&&fitM)sculpt(skinned,fitM);
+  const anatFit=fitM;
+  let fitRep=null;
+  if(T&&skinned){obj.updateMatrixWorld(true);fitRep=FIT.apply(skinned,T);obj.updateMatrixWorld(true);obj.scale.setScalar(UNIT);} /* matrices stay at identity until dressing (shells bind like the default path) */
   let dressed=null;
   if(skinned){
     const LM=SB.prep(skinned,{hideR:P.hideR||0,hideUV:P.hideUV});
@@ -6281,7 +6650,7 @@ function buildRig(pk){
       const n=o.name||'';
       if(/opacity/.test(n))return new THREE.MeshStandardMaterial({map:tex(A.tex.opacity,true),alphaTest:.42,side:THREE.DoubleSide,roughness:.7});
       const isHead=/head/.test(n);
-      return SB.bodyMaterial({map:tex(isHead?A.tex.head:A.tex.body,true),normalMap:tex(isHead?A.tex.headN:A.tex.bodyN,false),roughness:isHead?.5:.6,normalScale:new THREE.Vector2(.8,.8)},dressed.U,isHead);
+      return SB.bodyMaterial({map:tex(isHead?A.tex.head:A.tex.body,true),normalMap:tex(isHead?A.tex.headN:A.tex.bodyN,false),roughness:isHead?.5:.6,normalScale:new THREE.Vector2(.8*(isHead?1:.55+.45*lean),.8*(isHead?1:.55+.45*lean))},dressed.U,isHead);
     });
     skinned.material=Array.isArray(skinned.material)?mats:mats[0];
     if(P.headS&&bones.Bip01_Head)bones.Bip01_Head.scale.setScalar(P.headS);
@@ -6329,10 +6698,13 @@ function buildRig(pk){
     }
   }
   const rPalmF={};for(const sd of ['L','R'])rPalmF[sd]=perp(rPalm[sd],restDir['Bip01_'+sd+'_Forearm']);
-  if(dressed&&dressed.soleLift)dims.ankleH+=dressed.soleLift*.01*P.scale;
+  if(dressed&&dressed.soleLift)dims.ankleH+=dressed.soleLift*UNIT;
   const r={obj,bones,rest,dims,restDir,restHinge,curl,rPalm,rHandDir,rPalmF,restBasis:basisQ(LEFT,V(0,1,0)),shells:dressed?dressed.shells:[],anat:null,sk:skinned,pk,anatFit,hair:skinned&&SB.hair(skinned,SB.OUTFIT[pk],[['Bip01_Neck',6],['Bip01_Spine2',11],['Bip01_L_UpperArm',5.5],['Bip01_R_UpperArm',5.5],['Bip01_L_Clavicle',5],['Bip01_R_Clavicle',5]])};
-  RIGS[pk]=r;return r;
+  r.fit=fitRep;r.unit=UNIT;
+  if(!T)RIGS[pk]=r;return r;
 }
+function disposeRig(r){if(!r||RIGS[r.pk]===r)return;const g=o=>{if(o.geometry)o.geometry.dispose();[].concat(o.material||[]).forEach(m=>m&&m.dispose&&m.dispose());};
+  r.obj.traverse(g);(r.hair?r.hair.meshes:[]).forEach(m=>m.traverse(g));if(r.anat)r.anat.traverse(g);}
 /* fitness sculpting: push bind-pose vertices radially away from (or toward) each bone's axis */
 const CHILD={Thigh:'Calf',Calf:'Foot',UpperArm:'Forearm',Forearm:'Hand',Clavicle:'UpperArm',Spine:'Spine1',Spine1:'Spine2',Spine2:'Neck',Pelvis:'Spine',Neck:'Head'};
 function sculpt(sk,fit){
@@ -6435,7 +6807,7 @@ function plainRX(){R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposu
   if(/[?&]debug\b/.test((location.search||location.hash.replace('#','?'))))setTimeout(()=>{const d=document.createElement('pre');d.style.cssText='position:fixed;left:6px;bottom:6px;z-index:99;font:10px monospace;color:#ff9;background:rgba(0,0,0,.7);padding:6px;border-radius:8px;direction:ltr;pointer-events:none';d.textContent='PLAIN renderer · '+(window.__rxErr||'init/lite');document.body.appendChild(d);},500);
   return {plain:true,render(){R.setRenderTarget(null);R.render(scene,cam);},setSize(w,h){R.setPixelRatio(Math.min(2,devicePixelRatio));R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();},
     setDof(){},contact:{setCasters(){},render(){}},probe:{capture(){},setHide(){}}};}
-let rx;try{if(/[?&]lite\b/.test((location.search||location.hash.replace('#','?'))))throw new Error('lite mode');rx=RX.create({R,scene,cam,stage,key,rectLights:[topBox,fillBox],
+let rx;try{if(/[?&]lite\b/.test((location.search||location.hash.replace('#','?'))))throw new Error('lite mode');rx=RX.create({R,scene,cam,stage,key,still:BODY,rectLights:[topBox,fillBox],
   prepassHide:o=>(o.isSkinnedMesh&&o.userData.sb&&musV>.5)||(cur&&cur.hair&&cur.hair.meshes.includes(o)),
   cards:[[1.0,1.0,0xffd8a0,7,key.position.clone(),key.target.position.clone()],[.9,.9,0x7fe6c8,3.5,rim.position.clone(),rim.target.position.clone()],
          [1.5,.5,0xfff0dc,5,topBox.position.clone(),V(.12,0,0)],[1.8,1.2,0xd8e4ff,1.2,fillBox.position.clone(),V(.2,.65,0)]],
@@ -6557,8 +6929,312 @@ function frame(now){
 resize();
 function showErr(m){const l=document.getElementById('loading');if(l){l.style.fontSize='12px';l.style.padding='24px';l.style.textAlign='center';l.textContent='خطا در اجرای صحنه: '+m;}}
 addEventListener('error',e=>showErr(e.message||'unknown'));
-setTimeout(()=>{try{applyProfile(P0);tuneEnv();try{rx.probe.capture();}catch(e){console.error('probe',e);}tuneEnv();}catch(e){console.error(e);showErr(e.message);return;}document.getElementById('loading').remove();requestAnimationFrame(frame);
+setTimeout(()=>{if(BODY){try{BV.start();}catch(e){console.error(e);showErr(e.message);}return;}try{applyProfile(P0);tuneEnv();try{rx.probe.capture();}catch(e){console.error('probe',e);}tuneEnv();}catch(e){console.error(e);showErr(e.message);return;}document.getElementById('loading').remove();requestAnimationFrame(frame);
   [900,3000].forEach(t=>setTimeout(()=>{try{rx.probe.capture();}catch(e){console.error('probe',e);}},t));},30);
+
+/* ---------- استودیوی بدن (#view=body) ----------
+   کاراکتر ایستا در استودیوی تاریک با نور سه‌نقطه‌ای، شکل‌گرفته با اندازه‌های عضو (gym_fit.js).
+   پیام‌ها از اپ:  {t:'fit',p,m,id}  {t:'guide',k}  {t:'view',v}
+   پیام‌ها به اپ:  {t:'ready'} {t:'busy'} {t:'fitted',id,model,ms} {t:'err',m} */
+const BV=(()=>{
+if(!BODY)return null;
+let R0=null,pk=P0,armT=0,armTarget=0,guideK=null,pending=null,busy=false,dirty=true,settleUntil=0,lastPoseKey='';
+const post=m=>{try{parent.postMessage(Object.assign({src:'pcbody'},m),'*');}catch(e){}};
+/* ---- studio ---- */
+const studio=new THREE.Group();scene.add(studio);
+const bgTex=canvasTex(512,1024,(g,w,h)=>{const gr=g.createRadialGradient(w*.5,h*.42,h*.04,w*.5,h*.5,h*.72);
+  gr.addColorStop(0,'#3a3a3c');gr.addColorStop(.45,'#1f1f21');gr.addColorStop(1,'#08080a');g.fillStyle=gr;g.fillRect(0,0,w,h);
+  const im=g.getImageData(0,0,w,h),d=im.data;for(let i=0;i<d.length;i+=4){const n=(Math.random()-.5)*3;d[i]+=n;d[i+1]+=n;d[i+2]+=n;}g.putImageData(im,0,0);});
+/* seamless photo-studio cyclorama: floor sweeping up into the back wall (lit by the same lights → natural falloff) */
+/* seamless photo-studio cyclorama (floor sweeping into the back wall) with a baked soft light pool (unlit → no hard horizon),
+   plus an invisible shadow catcher for the key light's real cast shadow */
+const cycGeo=(()=>{ // 360° bowl: flat floor → curved cove → cylindrical wall (camera can orbit anywhere)
+  const R0f=6.2,Rr=1.8,pts=[];for(let r=0;r<R0f;r+=.15)pts.push([r,0]);for(let i=1;i<=20;i++){const a=i/20*Math.PI/2;pts.push([R0f+Math.sin(a)*Rr,Rr-Math.cos(a)*Rr]);}
+  for(let y=Rr+.5;y<=10;y+=.5)pts.push([R0f+Rr,y]);
+  const seg=96,pos=[],col=[],idx=[];
+  pts.forEach(([r,y])=>{for(let i=0;i<=seg;i++){const a=i/seg*Math.PI*2,x=Math.cos(a)*r,z=Math.sin(a)*r;pos.push(x,y,z);
+    const fl=Math.exp(-(x*x+z*z)/(2*1.5*1.5)),wl=Math.exp(-Math.pow(y-1.6,2)/(2*1.8*1.8));
+    const b=y<.01?.014+.1*fl:.012+.045*wl;col.push(b,b,b*1.04);}});
+  for(let j=0;j<pts.length-1;j++)for(let i=0;i<seg;i++){const a=j*(seg+1)+i,b=a+1,c=a+seg+1,d=c+1;idx.push(a,c,b,b,c,d);}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setIndex(idx);return g;})();
+const cyc=new THREE.Mesh(cycGeo,new THREE.MeshBasicMaterial({vertexColors:true,fog:false,side:THREE.DoubleSide}));cyc.userData.noAO=true;studio.add(cyc);
+const catcher=new THREE.Mesh(new THREE.CircleGeometry(2.4,64).rotateX(-Math.PI/2),new THREE.ShadowMaterial({opacity:.42,transparent:true,depthWrite:false}));
+catcher.position.y=.001;catcher.receiveShadow=true;catcher.userData.noAO=true;studio.add(catcher);
+const guides=new THREE.Group();scene.add(guides);
+function setupStudio(){
+  [gym,rig,bar,trace,dust,...CONES].forEach(g=>{if(g)g.visible=false;});
+  scene.background=new THREE.Color(0x060607);scene.fog.density=0;
+  // key: large soft warm-white light, front-left high (photo-studio octabox)
+  key.color.set(0xfff2e2);key.intensity=30;key.angle=.5;key.penumbra=.85;key.decay=1.6;key.distance=14;
+  key.position.set(1.7,3.4,2.9);key.target.position.set(0,1.0,0);key.target.updateMatrixWorld();
+  key.shadow.camera.near=2.2;key.shadow.camera.far=7.5;key.shadow.camera.updateProjectionMatrix();key.shadow.bias=-.00005;key.shadow.normalBias=.003;key.shadow.radius=3;
+  // two rim lights from behind → bright contour on shoulders, arms, legs (like the AI character photos)
+  rim.color.set(0xdfe8ff);rim.intensity=26;rim.angle=.42;rim.penumbra=.7;rim.position.set(-2.1,2.9,-2.4);rim.target.position.set(0,1.05,0);rim.target.updateMatrixWorld();
+  kick.color.set(0xffd9a8);kick.intensity=18;kick.angle=.45;kick.penumbra=.75;kick.position.set(2.3,2.3,-2.2);kick.target.position.set(0,1.0,0);kick.target.updateMatrixWorld();
+  amb.intensity=0;
+  topBox.intensity=.9;topBox.position.set(0,3.1,.4);topBox.lookAt(0,0,.2);
+  fillBox.color.set(0xdfe6f2);fillBox.intensity=1.1;fillBox.width=2.2;fillBox.height=1.6;fillBox.position.set(-2.4,1.5,2.4);fillBox.lookAt(0,1.0,0);
+  if(rx.grade){rx.grade.exposure.value=1.18;rx.grade.contrast.value=.2;rx.grade.sat.value=1.02;}
+  if(rx.finish){rx.finish.grain.value=.006;rx.finish.vig.value=.32;}
+  if(rx.contact&&rx.contact.plane&&rx.contact.plane.parent)rx.contact.plane.parent.position.set(0,.0015,0);
+  if(rx.accum){rx.accum.set(true,matchMedia('(pointer:coarse)').matches?20:32);
+    const K0=key.position.clone(),R0p=rim.position.clone();
+    rx.accum.hook=n=>{ // soft shadows: move the key light over a small disc per accumulated frame
+      if(n===0){key.position.copy(K0);rim.position.copy(R0p);return;}
+      const a=n*2.39996,r=.16*Math.sqrt((n%16+.5)/16);key.position.set(K0.x+Math.cos(a)*r,K0.y+Math.sin(a)*r*.6,K0.z+Math.sin(a)*r);
+      rim.position.set(R0p.x+Math.sin(a)*.08,R0p.y,R0p.z+Math.cos(a)*.08);};}
+}
+/* ---- pose: relaxed natural stance; arms abduct for torso guides / T-pose for arm span ---- */
+function bodyPose(r){
+  const d=r.dims,up=V(0,1,0),fw=V(0,0,1),lf=V(1,0,0);
+  const P=V(0,d.ankleH+(d.thigh+d.shin)*.994,0);
+  const span=armT>1.01?Math.min(1,armT-1):0,abd=(span>0?lerp(34,88,span):lerp(8,34,Math.min(1,armT)))*D;
+  const o={P,up,fwd:fw,feet:{},toeDir:{L:V(.2,0,1),R:V(-.2,0,1)},kneePole:fw,kneeOut:.05,hands:{},elbowPole:V(0,-.1,-1),elbowOut:.25,noCurl:true,
+    palm:span>.5?{L:V(0,-1,.05),R:V(0,-1,.05)}:{L:V(-1,0,.12),R:V(1,0,.12)},wristExt:0,bar:V(0,-9,0)};
+  for(const [k,sg] of [['L',1],['R',-1]]){
+    o.feet[k]=P.clone().setY(d.ankleH).addScaledVector(lf,sg*(d.hipW+.03)).add(V(0,0,-.005));
+    const sh=P.clone().addScaledVector(up,d.spine).addScaledVector(fw,d.shZ).addScaledVector(lf,sg*d.shW);
+    const L=(d.uarm+d.farm)*(span>0?.995:.975);
+    o.hands[k]=sh.clone().addScaledVector(up,-Math.cos(abd)*L).addScaledVector(lf,sg*Math.sin(abd)*L).addScaledVector(fw,span>0?0:.03);
+  }
+  return o;
+}
+function applyPose(){
+  if(!R0)return;PSok=false;poseRig(R0,bodyPose(R0));
+  R0.curl.forEach((q,b)=>b.quaternion.copy(R0.rest.lq.get(b)).slerp(q,.2)); // relaxed fingers
+  R0.obj.updateMatrixWorld(true);
+}
+/* ---- camera: orbit around the body; presets per guide ---- */
+const CAMS={yaw:0,pitch:3*D,dist:3,tgt:V(0,.9,0)},CT={yaw:0,pitch:3*D,dist:3,tgt:V(0,.9,0)};
+let userZoom=1;
+function frameAll(){const H=R0?R0.fit?R0.fit.model.height/100:PROF[pk].h/100:1.75;
+  const f=cam.fov*D/2,a=Math.max(.3,cam.aspect);const dv=(H*1.17/2)/Math.tan(f),dh=(.82/2)/(Math.tan(f)*a);
+  return {dist:Math.max(dv,dh),tgt:V(0,H*.505,0)};}
+function setView(v){const fa0=frameAll();
+  CT.yaw={front:0,side:-90*D,back:180*D,left:90*D,q:-28*D}[v]??0;CT.pitch=3*D;CT.dist=fa0.dist;CT.tgt.copy(fa0.tgt);userZoom=1;dirty=true;}
+cam.fov=24;cam.near=.05;cam.far=60;cam.updateProjectionMatrix();
+function placeCam(){
+  const k=.16;let moving=false;
+  const dy=((CT.yaw-CAMS.yaw+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;
+  if(Math.abs(dy)>1e-4){CAMS.yaw+=dy*k;moving=true;}
+  for(const n of ['pitch','dist']){const t=n==='dist'?CT.dist*userZoom:CT[n];if(Math.abs(t-CAMS[n])>1e-4){CAMS[n]+=(t-CAMS[n])*k;moving=true;}}
+  if(CAMS.tgt.distanceToSquared(CT.tgt)>1e-8){CAMS.tgt.lerp(CT.tgt,k);moving=true;}
+  const cp=Math.cos(CAMS.pitch);cam.position.set(CAMS.tgt.x+Math.sin(CAMS.yaw)*cp*CAMS.dist,CAMS.tgt.y+Math.sin(CAMS.pitch)*CAMS.dist,CAMS.tgt.z+Math.cos(CAMS.yaw)*cp*CAMS.dist);
+  cam.lookAt(CAMS.tgt);return moving;
+}
+/* ---- input: drag = orbit, pinch / wheel = zoom, double-tap = reset ---- */
+const ptr=new Map();let pinch0=0,zoom0=1,lastTap=0;
+const el=R.domElement;el.style.touchAction='none';
+el.addEventListener('pointerdown',e=>{ptr.set(e.pointerId,{x:e.clientX,y:e.clientY,yaw:CT.yaw,pitch:CT.pitch});el.setPointerCapture(e.pointerId);
+  if(ptr.size===2){const [a,b]=[...ptr.values()];pinch0=Math.hypot(a.x-b.x,a.y-b.y);zoom0=userZoom;}
+  const now=performance.now();if(ptr.size===1&&now-lastTap<300){guideK?showGuide(guideK,true):setView('front');}lastTap=now;});
+el.addEventListener('pointermove',e=>{const p=ptr.get(e.pointerId);if(!p)return;
+  if(ptr.size===1){CT.yaw=p.yaw-(e.clientX-p.x)*.009;CT.pitch=Math.max(-12*D,Math.min(32*D,p.pitch+(e.clientY-p.y)*.004));CAMS.yaw=CT.yaw;dirty=true;}
+  else if(ptr.size===2){const cur=ptr.get(e.pointerId);cur.cx=e.clientX;cur.cy=e.clientY;const v=[...ptr.values()].map(q=>[q.cx??q.x,q.cy??q.y]);
+    const d=Math.hypot(v[0][0]-v[1][0],v[0][1]-v[1][1]);if(pinch0>0){userZoom=Math.max(.3,Math.min(1.35,zoom0*pinch0/d));dirty=true;}}});
+const up=e=>{ptr.delete(e.pointerId);if(ptr.size<2)pinch0=0;};
+el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);
+el.addEventListener('wheel',e=>{e.preventDefault();userZoom=Math.max(.3,Math.min(1.35,userZoom*(1+Math.sign(e.deltaY)*.08)));dirty=true;},{passive:false});
+
+/* ---- guides (measurement locations) — computed on the posed, fitted mesh ---- */
+const GOLD=new THREE.Color(0xffcf73).multiplyScalar(2.4);
+const gMat=new THREE.MeshBasicMaterial({color:GOLD,toneMapped:false,fog:false});
+const gGhost=new THREE.MeshBasicMaterial({color:new THREE.Color(0xffcf73).multiplyScalar(1.2),toneMapped:false,fog:false,transparent:true,opacity:.22,depthTest:false,depthWrite:false});
+const gDot=new THREE.MeshBasicMaterial({color:new THREE.Color(0xffe2a0).multiplyScalar(3),toneMapped:false,fog:false});
+const haloT=canvasTex(64,64,(g,w,h)=>{const gr=g.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);gr.addColorStop(0,'rgba(255,214,130,1)');gr.addColorStop(.35,'rgba(255,200,110,.55)');gr.addColorStop(1,'rgba(255,190,90,0)');g.fillStyle=gr;g.fillRect(0,0,w,h);});
+let NODRAW=false,PSok=false;
+function tube(pts,closed,r){if(NODRAW)return;const cv=new THREE.CatmullRomCurve3(pts,closed,'centripetal');const n=Math.max(24,pts.length*3);
+  const geo=new THREE.TubeGeometry(cv,n,r||.0028,8,closed);const m=new THREE.Mesh(geo,gMat),gh=new THREE.Mesh(geo,gGhost);gh.renderOrder=20;
+  [m,gh].forEach(x=>{x.userData.noAO=true;x.castShadow=false;x.receiveShadow=false;guides.add(x);});}
+function dot(p,r){if(NODRAW)return;const m=new THREE.Mesh(new THREE.SphereGeometry(r||.0065,16,12),gDot);m.position.copy(p);m.userData.noAO=true;guides.add(m);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:haloT,color:0xffffff,transparent:true,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending,toneMapped:false}));
+  s.scale.setScalar((r||.0065)*7);s.position.copy(p);s.renderOrder=21;s.userData.noAO=true;guides.add(s);}
+function line(a,b,ticks){tube([a,a.clone().lerp(b,.5),b],false,.0024);dot(a,.0055);dot(b,.0055);
+  if(ticks){const d=b.clone().sub(a).normalize(),t=ticks.clone().normalize().multiplyScalar(.035);
+    [a,b].forEach(p=>tube([p.clone(),p.clone().add(t.clone().multiplyScalar(.5)),p.clone().add(t)],false,.002));}}
+function clearGuides(){guides.children.slice().forEach(o=>{guides.remove(o);if(o.geometry&&o.geometry.type!=='SphereGeometry')o.geometry.dispose();else if(o.geometry)o.geometry.dispose();if(o.isSprite)o.material.dispose();});}
+let PS=null; // posed snapshot: {c, V(cm, world), J(cm)}
+function posedSnapshot(){
+  const sk=R0.sk;sk.skeleton.update();const c=R0._ctx||(R0._ctx=FIT._ctx(sk));
+  const V=new Float32Array(c.n*3),v=new THREE.Vector3();sk.updateMatrixWorld(true);
+  for(let k=0;k<c.n;k++){sk.getVertexPosition(k,v);v.applyMatrix4(sk.matrixWorld).multiplyScalar(100);V[3*k]=v.x;V[3*k+1]=v.y;V[3*k+2]=v.z;}
+  const J={};Object.entries(R0.bones).forEach(([n,b])=>J[n.replace(/^Bip01_/,'')]=b.getWorldPosition(new THREE.Vector3()).multiplyScalar(100));
+  let y0=1e9,y1=-1e9;for(let k=1;k<V.length;k+=3){y0=Math.min(y0,V[k]);y1=Math.max(y1,V[k]);}
+  return {c,V,J,top:y1,floor:y0};
+}
+const EY=V(0,1,0),EX=V(1,0,0),EZ=V(0,0,1),cm=v=>v.clone().multiplyScalar(.01);
+function ringAt(o,n,e1,e2,ok,maxR,grow){ // slice → hull → 3D loop (metres)
+  const S=PS,pts=[],c=S.c,T=c.tri,s=[0,0,0];
+  for(let t=0;t<c.nt;t++){const ids=[T[3*t],T[3*t+1],T[3*t+2]];if(ok(ids[0])+ok(ids[1])+ok(ids[2])<2)continue;let pos=0,neg=0;
+    for(let i=0;i<3;i++){const k=ids[i];s[i]=(S.V[3*k]-o.x)*n.x+(S.V[3*k+1]-o.y)*n.y+(S.V[3*k+2]-o.z)*n.z;s[i]>0?pos++:neg++;}
+    if(!pos||!neg)continue;
+    for(let i=0;i<3;i++){const j=(i+1)%3;if((s[i]>0)===(s[j]>0))continue;const k=ids[i],l=ids[j],f=s[i]/(s[i]-s[j]);
+      const x=S.V[3*k]+(S.V[3*l]-S.V[3*k])*f-o.x,y=S.V[3*k+1]+(S.V[3*l+1]-S.V[3*k+1])*f-o.y,z=S.V[3*k+2]+(S.V[3*l+2]-S.V[3*k+2])*f-o.z;
+      const u=x*e1.x+y*e1.y+z*e1.z,w=x*e2.x+y*e2.y+z*e2.z;if(maxR&&u*u+w*w>maxR*maxR)continue;pts.push([u,w]);}}
+  if(pts.length<3)return null;
+  pts.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);const cr=(O,A,B)=>(A[0]-O[0])*(B[1]-O[1])-(A[1]-O[1])*(B[0]-O[0]);const lo=[],hi=[];
+  for(const p of pts){while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p);}
+  for(let i=pts.length-1;i>=0;i--){const p=pts[i];while(hi.length>=2&&cr(hi[hi.length-2],hi[hi.length-1],p)<=0)hi.pop();hi.push(p);}
+  const H=lo.slice(0,-1).concat(hi.slice(0,-1));let cu=0,cv=0;H.forEach(p=>{cu+=p[0];cv+=p[1];});cu/=H.length;cv/=H.length;
+  // resample evenly + push out slightly so the tape sits on the skin/clothes
+  let per=0;for(let i=0;i<H.length;i++){const a=H[i],b=H[(i+1)%H.length];per+=Math.hypot(b[0]-a[0],b[1]-a[1]);}
+  const N=64,out=[];let acc=0,i=0;for(let s2=0;s2<N;s2++){const want=per*s2/N;
+    while(true){const a=H[i%H.length],b=H[(i+1)%H.length],L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(acc+L>=want||i>H.length*2){const f=L?(want-acc)/L:0;
+      let u=a[0]+(b[0]-a[0])*f,w=a[1]+(b[1]-a[1])*f;const du=u-cu,dw=w-cv,dl=Math.hypot(du,dw)||1;u+=du/dl*(grow||.35);w+=dw/dl*(grow||.35);
+      out.push(cm(o.clone().addScaledVector(e1,u).addScaledVector(e2,w)));break;}acc+=L;i++;}}
+  return {pts:out,per,center:cm(o.clone().addScaledVector(e1,cu).addScaledVector(e2,cv)),hull:H,o,e1,e2};
+}
+function limbFrame(a,b,t){const d=b.clone().sub(a),L=d.length();d.normalize();const e1=Math.abs(d.y)<.9?new THREE.Vector3().crossVectors(d,EY).normalize():new THREE.Vector3().crossVectors(d,EX).normalize();
+  return {o:a.clone().addScaledVector(d,t*L),n:d,e1,e2:new THREE.Vector3().crossVectors(d,e1).normalize(),L};}
+function surfPoint(r,dir){ // hull point furthest along dir (cm basis) → metres
+  let best=null,bd=-1e9;const d1=dir.dot(r.e1),d2=dir.dot(r.e2);for(const p of r.hull){const s=p[0]*d1+p[1]*d2;if(s>bd){bd=s;best=p;}}
+  return cm(r.o.clone().addScaledVector(r.e1,best[0]).addScaledVector(r.e2,best[1]));}
+function nearest(grps,center,radius,score){ // best-scoring posed vertex near a joint → metres
+  const S=PS,g=S.c.grp;let best=null,bs=-1e9;for(let k=0;k<S.c.n;k++){if(!grps.includes(g[k]))continue;const x=S.V[3*k],y=S.V[3*k+1],z=S.V[3*k+2];
+    if((x-center.x)**2+(y-center.y)**2+(z-center.z)**2>radius*radius)continue;const s=score(x,y,z);if(s>bs){bs=s;best=[x,y,z];}}
+  return best?V(best[0],best[1],best[2]).multiplyScalar(.01):cm(center);}
+const GG=FIT.G;
+const torsoOK=k=>PS.c.grp[k]<=GG.CR,hipOK=k=>{const g=PS.c.grp[k];return g===GG.T||g===GG.TL||g===GG.TR;};
+function lmY(k){ // landmark height in the posed frame (bind landmark + pelvis offset)
+  const f=R0.fit;const lm=f?f.after.lm:null;const pelB=R0._pelBind,pelP=PS.J.Pelvis.y;
+  const dy=pelP-(pelB??pelP);if(lm){return {chest:lm.yChest,waist:lm.yWaist,hip:lm.yHip,neck:lm.yNeck,iliac:lm.yIliac,crotch:lm.crotch}[k]+dy;}
+  return null;}
+function buildGuide(k){
+  clearGuides();if(!k||!R0)return null;if(!PSok){PS=posedSnapshot();PSok=true;}const J=PS.J,H=PS.top-PS.floor;
+  const side=-1; // ISAK: right side (character's right = -x)
+  const R_=n=>J['R_'+n],L_=n=>J['L_'+n];
+  const yb=n=>lmY(n)??({chest:J.Spine2.y,waist:(J.Spine.y+J.Spine1.y)/2,hip:J.Pelvis.y-3,neck:J.Neck.y+2,iliac:J.Pelvis.y+H*.06,crotch:J.Pelvis.y-8}[n]);
+  const hring=(y,ok,xm)=>ringAt(V(0,y,0),EY,EX,EZ,xm?(i=>ok(i)&&Math.abs(PS.V[3*i])<xm):ok,null);
+  const xarm=Math.abs(L_('UpperArm').x)*1.02;
+  const limb=(sd,a,b,t,grps,rr,grow)=>{const f=limbFrame(J[sd+'_'+a],J[sd+'_'+b],t);return ringAt(f.o,f.n,f.e1,f.e2,i=>grps.includes(PS.c.grp[i]),f.L*(rr||.6),grow);};
+  const fx=R0.fit&&R0.fit.FX||{tForearm:.25,tWrist:.92,tCalf:.3,tAnkle:.86};
+  const crotch=yb('crotch');const tTh=Math.max(.04,Math.min(.4,(R_('Thigh').y-(crotch-2.5))/Math.max(1,R_('Thigh').y-R_('Calf').y)));
+  let r=null,focus=null,view={yaw:-18*D,zoom:.5},out={};
+  const ring=x=>{if(x){tube(x.pts,true);focus=x.center;out.ring=x;}return x;};
+  switch(k){
+    case 'height':{const x=(L_('UpperArm').x+30)*.01;const a=V(x,PS.floor*.01,0),b=V(x,PS.top*.01,0);line(a,b);tube([V(.0,PS.top*.01+.004,0),V(x*.5,PS.top*.01+.004,0),V(x,PS.top*.01+.004,0)],false,.002);focus=V(0,H*.005,0);view={yaw:-12*D,zoom:1};break;}
+    case 'weight':{const pts=[];for(let i=0;i<48;i++){const a=i/48*Math.PI*2;pts.push(V(Math.cos(a)*.32,.004,Math.sin(a)*.24+.03));}tube(pts,true,.003);focus=V(0,H*.005,0);view={yaw:-14*D,zoom:1,pitch:10*D};break;}
+    case 'sit':{const x=(R_('UpperArm').x-28)*.01;const a=V(x,crotch*.01,0),b=V(x,PS.top*.01,0);line(a,b,V(1,0,0));focus=V(0,(crotch+PS.top)*.005,0);view={yaw:-60*D,zoom:.78};break;}
+    case 'span':{const hs=[GG.HL,GG.HR];let lx=-1e9,rx2=1e9,ly=0,ry=0;for(let i=0;i<PS.c.n;i++){const g=PS.c.grp[i];if(!hs.includes(g))continue;const x=PS.V[3*i];if(x>lx){lx=x;ly=PS.V[3*i+1];}if(x<rx2){rx2=x;ry=PS.V[3*i+1];}}
+      const y=Math.max(ly,ry)*.01+.03;line(V(rx2*.01,y,.02),V(lx*.01,y,.02),V(0,-1,0));focus=V(0,y-.15,0);view={yaw:0,zoom:1.05};break;}
+    case 'neck':ring(hring(yb('neck'),i=>{const n=PS.c.names[PS.c.dom[i]];return n==='Neck'||n==='Spine2';},H*.06));view={yaw:-24*D,zoom:.32};break;
+    case 'chest':case 'chestB':{r=hring(yb('chest'),torsoOK,xarm);if(k==='chest')ring(r);else if(r){const a=surfPoint(r,V(-1,0,0)),b=surfPoint(r,V(1,0,0));a.x-=.012;b.x+=.012;line(a,b,V(0,0,1));focus=r.center;}view={yaw:-14*D,zoom:.45};break;}
+    case 'waist':ring(hring(yb('waist'),torsoOK,xarm));view={yaw:-16*D,zoom:.45};break;
+    case 'hip':ring(hring(yb('hip'),hipOK,xarm));view={yaw:-70*D,zoom:.5};break;
+    case 'shoulder':{const y=R_('UpperArm').y-3.5;const ok=i=>{const g=PS.c.grp[i];return g<=GG.UR;};ring(hring(y,ok));view={yaw:-20*D,zoom:.5,pitch:8*D};break;}
+    case 'biceps':case 'bicepsF':ring(limb('R','UpperArm','Forearm',.5,[GG.UR,GG.CR]));view={yaw:-62*D,zoom:.32};break;
+    case 'forearm':ring(limb('R','Forearm','Hand',fx.tForearm,[GG.FR,GG.UR,GG.HR]));view={yaw:-60*D,zoom:.32};break;
+    case 'wrist':ring(limb('R','Forearm','Hand',fx.tWrist,[GG.FR,GG.UR,GG.HR]));view={yaw:-55*D,zoom:.28};break;
+    case 'thigh':ring(limb('R','Thigh','Calf',tTh,[GG.TR,GG.T],.3));view={yaw:-40*D,zoom:.42};break;
+    case 'midthigh':ring(limb('R','Thigh','Calf',.5,[GG.TR],.3));view={yaw:-40*D,zoom:.42};break;
+    case 'calf':ring(limb('R','Calf','Foot',fx.tCalf,[GG.KR]));view={yaw:-45*D,zoom:.38};break;
+    case 'ankle':ring(limb('R','Calf','Foot',fx.tAnkle,[GG.KR]));view={yaw:-40*D,zoom:.32,pitch:6*D};break;
+    /* lengths (ISAK landmarks, right side) */
+    case 'uarmL':case 'farmL':case 'handL':{
+      const ac=nearest([GG.CR,GG.UR],R_('UpperArm'),9,(x,y,z)=>-x*.8+y*1.0);
+      const ra=nearest([GG.UR,GG.FR],R_('Forearm'),6,(x,y,z)=>-x-Math.abs(y-R_('Forearm').y)*.5);
+      const st=nearest([GG.FR,GG.HR],R_('Hand'),4.5,(x,y,z)=>z*1.0-x*.3-Math.abs(y-R_('Hand').y)*.6);
+      let da=null,dy=1e9;for(let i=0;i<PS.c.n;i++){if(PS.c.grp[i]!==GG.HR)continue;if(PS.V[3*i+1]<dy){dy=PS.V[3*i+1];da=[PS.V[3*i],PS.V[3*i+1],PS.V[3*i+2]];}}
+      const dac=V(da[0],da[1],da[2]).multiplyScalar(.01);const o=V(-.012,0,0);
+      const P=k==='uarmL'?[ac,ra]:k==='farmL'?[ra,st]:[st,dac];line(P[0].clone().add(o),P[1].clone().add(o));focus=P[0].clone().lerp(P[1],.5);view={yaw:-80*D,zoom:k==='handL'?.3:.42};break;}
+    case 'thighL':case 'shankL':{
+      const tr=nearest([GG.TR,GG.T],R_('Thigh'),10,(x,y,z)=>-x-Math.abs(y-R_('Thigh').y)*.6);
+      const tl=nearest([GG.TR,GG.KR],R_('Calf'),7,(x,y,z)=>-x-Math.abs(y-R_('Calf').y)*.8);
+      const tm=nearest([GG.TR,GG.KR],R_('Calf'),7,(x,y,z)=>x-Math.abs(y-(R_('Calf').y-1))*.8);
+      const sp=nearest([GG.KR,GG.PR],R_('Foot'),6,(x,y,z)=>x-Math.abs(y-(R_('Foot').y+.5))*.8);
+      if(k==='thighL'){line(tr.clone().add(V(-.012,0,0)),tl.clone().add(V(-.012,0,0)));focus=tr.clone().lerp(tl,.5);view={yaw:-85*D,zoom:.5};}
+      else{line(tm.clone().add(V(.012,0,0)),sp.clone().add(V(.012,0,0)));focus=tm.clone().lerp(sp,.5);view={yaw:-10*D,zoom:.5};}break;}
+    case 'footL':{let h=null,t=null;for(let i=0;i<PS.c.n;i++){if(PS.c.grp[i]!==GG.PR)continue;const p=[PS.V[3*i],PS.V[3*i+1],PS.V[3*i+2]];if(!h||p[2]<h[2])h=p;if(!t||p[2]>t[2])t=p;}
+      const a=V(h[0],1,h[2]-.4).multiplyScalar(.01),b=V(t[0],1,t[2]+.4).multiplyScalar(.01);a.y=b.y=PS.floor*.01+.006;line(a,b,V(0,1,0));focus=a.clone().lerp(b,.5);view={yaw:-90*D,zoom:.3,pitch:14*D};break;}
+    case 'biac':{const a=nearest([GG.CR,GG.UR],R_('UpperArm'),9,(x,y,z)=>-x*.8+y),b=nearest([GG.CL,GG.UL],L_('UpperArm'),9,(x,y,z)=>x*.8+y);a.y+=.018;b.y+=.018;line(a,b,V(0,-1,0));focus=a.clone().lerp(b,.5);view={yaw:-160*D,zoom:.45,pitch:10*D};break;}
+    case 'biil':{r=hring(yb('iliac'),torsoOK,xarm);if(r){const a=surfPoint(r,V(-1,0,0)),b=surfPoint(r,V(1,0,0));a.x-=.012;b.x+=.012;line(a,b,V(0,-1,0));focus=r.center;}view={yaw:-170*D,zoom:.45};break;}
+    /* skinfold sites (right side) */
+    default:{
+      const sf={sf_triceps:()=>{const x=limb('R','UpperArm','Forearm',.5,[GG.UR,GG.CR]);return [surfPoint(x,V(0,0,-1)),-150];},
+        sf_biceps:()=>{const x=limb('R','UpperArm','Forearm',.5,[GG.UR,GG.CR]);return [surfPoint(x,V(0,0,1)),-35];},
+        sf_subscap:()=>{const x=hring(J.Spine2.y-H*.035,torsoOK,xarm);return [surfPoint(x,V(-.42,-.2,-1).normalize()),-165];},
+        sf_iliac:()=>{const x=hring(yb('iliac')+1,torsoOK,xarm);return [surfPoint(x,V(-1,0,-.05).normalize()),-95];},
+        sf_supra:()=>{const x=hring(yb('iliac')-H*.03,torsoOK,xarm);return [surfPoint(x,V(-.55,0,1).normalize()),-35];},
+        sf_abd:()=>{const x=hring((yb('waist')+yb('iliac'))/2-1,torsoOK,xarm);return [surfPoint(x,V(-.28,0,1).normalize()),-15];},
+        sf_thigh:()=>{const x=limb('R','Thigh','Calf',.5,[GG.TR],.3);return [surfPoint(x,V(0,0,1)),-20];},
+        sf_calf:()=>{const x=limb('R','Calf','Foot',fx.tCalf,[GG.KR]);return [surfPoint(x,V(1,0,0)),35];}}[k];
+      if(!sf)return null;const [p,yaw]=sf();dot(p,.0075);
+      // pinch marks: two short parallel strokes = where to lift the fold (vertical fold; oblique for subscapular/supraspinale)
+      const ang=(k==='sf_subscap'?-45:k==='sf_supra'?45:0)*D,dd=V(Math.sin(ang),Math.cos(ang),0).multiplyScalar(.018);
+      const n=cam.position.clone().sub(p).setY(0).normalize(),offs=new THREE.Vector3().crossVectors(dd.clone().normalize(),n).normalize().multiplyScalar(.011);
+      focus=p;view={yaw:yaw*D,zoom:.42};break;}
+  }
+  out.focus=focus;out.view=view;return out;
+}
+function showGuide(k,recenter){
+  guideK=k||null;
+  armTarget=k==='span'?2:(/^(chest|chestB|waist|hip|biil|neck|sf_iliac|sf_subscap|sf_supra|sf_abd)$/.test(k||'')?1:0);
+  const go=()=>{const g=buildGuide(guideK);dirty=true;
+    if(g&&g.focus){const fa0=frameAll();CT.yaw=g.view.yaw;CT.pitch=g.view.pitch??4*D;CT.dist=fa0.dist*g.view.zoom;CT.tgt.copy(g.focus);userZoom=1;}
+    else if(!guideK||recenter){setView('q');}};
+  pendingGuide=go;
+}
+let pendingGuide=null;
+/* ---- fitting ---- */
+function hasMeas(m){return m&&Object.keys(m).some(k=>m[k]>0);}
+async function doFit(job){
+  busy=true;post({t:'busy',id:job.id});
+  await new Promise(r=>setTimeout(r,16));
+  const t0=performance.now();let nr;
+  try{nr=buildRig(job.p,hasMeas(job.m)?job.m:null);}catch(e){console.error(e);post({t:'err',m:String(e&&e.message||e),id:job.id});busy=false;return;}
+  if(R0){scene.remove(R0.obj);if(R0.hair)R0.hair.meshes.forEach(m=>scene.remove(m));disposeRig(R0);}
+  R0=nr;pk=job.p;cur=R0;prof=PROF[pk];
+  R0._pelBind=R0.fit?R0.fit.after?(R0.sk.skeleton.boneInverses[R0.sk.skeleton.bones.indexOf(R0.bones.Bip01_Pelvis)].clone().invert().elements[13]):null:null;
+  scene.add(R0.obj);if(R0.hair)R0.hair.meshes.forEach(m=>{scene.add(m);m.visible=true;});
+  if(R0.shells)R0.shells.forEach(m=>m.visible=true);
+  tuneEnv();rx.contact.setCasters([R0.obj].concat(R0.hair?R0.hair.meshes:[]));
+  if(R0.hair&&R0.hair.reset)R0.hair.reset();
+  applyPose();settleUntil=performance.now()+1600;dirty=true;
+  const model=R0.fit?R0.fit.model:null;if(model)model.kg=R0.fit.targetVol?Math.round(R0.fit.after.vol*(495/((job.m.bf||20)+450))*10)/10:null;
+  post({t:'fitted',id:job.id,p:pk,model,ms:Math.round(performance.now()-t0)});
+  lastFitKey=job.p+JSON.stringify(job.m||{});
+  if(job.still)prepareStill();else if(guideK)showGuide(guideK);else if(!job.keepView)setView('q');
+  busy=false;
+  if(pending){const j=pending;pending=null;doFit(j);}
+}
+let lastFitKey='',stillReq=null;
+function prepareStill(){guideK=null;pendingGuide=null;clearGuides();armTarget=0;const fa0=frameAll();CT.yaw=-9*D;CT.pitch=2.5*D;CT.dist=fa0.dist;CT.tgt.copy(fa0.tgt);userZoom=1;dirty=true;if(stillReq)stillReq.armed=true;}
+function siteFracs(){const out={};NODRAW=true;const v=new THREE.Vector3();
+  try{for(const k of ['neck','chest','waist','hip','biceps','forearm','thigh','calf']){const g=buildGuide(k);if(!g||!g.ring)continue;let xl=9,xr=-9,ys=0,n=0,yl=0;
+    g.ring.pts.forEach(p=>{v.copy(p).project(cam);const x=(v.x+1)/2,y=(1-v.y)/2;if(x<xl){xl=x;yl=y;}if(x>xr)xr=x;ys+=y;n++;});out[k]=[+(yl).toFixed(4),+xl.toFixed(4),+xr.toFixed(4),+(ys/n).toFixed(4)];}}
+  finally{NODRAW=false;clearGuides();}return out;}
+function capture(){const c=R.domElement;let url='';try{url=c.toDataURL('image/jpeg',.9);}catch(e){post({t:'err',m:'capture',id:stillReq.id});stillReq=null;return;}
+  const sites=siteFracs();post({t:'still',id:stillReq.id,url,sites,w:c.width,h:c.height});stillReq=null;}
+function onMsg(e){const d=e.data;if(!d||typeof d!=='object'||d.src!=='pcgym')return;
+  if(d.t==='still'){const p=/^[mfgt]$/.test(d.p)?d.p:pk,m=d.m||{};stillReq={id:d.id,armed:false};
+    if(lastFitKey===p+JSON.stringify(m)&&R0&&!busy)prepareStill();else{const job={id:'s'+d.id,p,m,keepView:true,still:true};if(busy)pending=job;else doFit(job);}return;}
+  if(d.t==='fit'){const job={id:d.id,p:/^[mfgt]$/.test(d.p)?d.p:pk,m:d.m||{},keepView:!!R0};if(busy)pending=job;else doFit(job);}
+  else if(d.t==='guide')showGuide(d.k||null);
+  else if(d.t==='view')setView(d.v);}
+addEventListener('message',onMsg);
+/* ---- loop: render only while something changes; then accumulate a still and stop ---- */
+function loop(now){
+  requestAnimationFrame(loop);if(!R0)return;
+  if(pendingGuide&&armT===armTarget){const f=pendingGuide;pendingGuide=null;f();}
+  if(Math.abs(armT-armTarget)>.002){armT+=(armTarget-armT)*.14;if(Math.abs(armT-armTarget)<.003)armT=armTarget;applyPose();dirty=true;}
+  if(placeCam())dirty=true;
+  if(now<settleUntil){dirty=true;if(R0.hair){R0.obj.updateMatrixWorld(true);R0.hair.step(now,{bench:{x0:9,x1:9.1,zw:.01,top:-9}});}}
+  if(dirty){if(rx.accum)rx.accum.reset();dirty=false;}
+  else if(stillReq&&stillReq.armed&&!busy&&!pendingGuide&&now>settleUntil&&(!rx.accum||rx.accum.done)){try{rx.render(now);}catch(e){}capture();return;}
+  else if(rx.accum&&rx.accum.done)return;
+  else if(!rx.accum&&now>settleUntil+500)return;
+  try{rx.render(now);}catch(e){console.error('RX render',e);if(!rx.plain){const w=stage.clientWidth,h=stage.clientHeight;rx=plainRX();rx.setSize(w,h);rx.render(now);}}
+}
+function start(){
+  setupStudio();resize();addEventListener('resize',()=>{resize();dirty=true;});
+  const l=document.getElementById('loading');if(l)l.remove();
+  // default figure until the app sends measurements
+  doFit({id:0,p:pk,m:{}}).then(()=>{try{rx.probe.capture();}catch(e){}dirty=true;post({t:'ready'});});
+  requestAnimationFrame(loop);
+}
+window.__bv={state:()=>({pk,guideK,armT,busy,fit:R0&&R0.fit&&R0.fit.model,acc:rx.accum&&rx.accum.n}),fit:(m,p)=>onMsg({data:{src:'pcgym',t:'fit',p:p||pk,m,id:Date.now()}}),guide:k=>showGuide(k),view:v=>setView(v),rig:()=>R0};
+return {start};
+})();
 </script>
 </body>
 </html>

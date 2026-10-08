@@ -2,7 +2,7 @@
 """Builds ~/gym-app/index.html from src/ (inline CSS + JS + geometry). Run from anywhere."""
 import os,re,json
 R=os.path.expanduser('~/gym-app')
-sh=open(f'{R}/src/shell.html').read(); css=open(f'{R}/src/app.css').read(); js=open(f'{R}/src/app.js').read()
+sh=open(f'{R}/src/shell.html').read(); css=open(f'{R}/src/app.css').read(); js=open(f'{R}/src/app.js').read()+'\n'+open(f'{R}/src/body.js').read()
 # cache-busting: تصویر عوض شود → آدرس عوض می‌شود (کش مرورگر/Pages نسخهٔ قدیمی را نشان ندهد)
 import hashlib as _h
 _fh=lambda *ps:_h.sha1(b''.join(open(f'{R}/'+p,'rb').read() for p in ps)).hexdigest()[:8]
