@@ -3,7 +3,7 @@
    Auth: Supabase (same accounts as the academy panel — password changes / new users apply automatically).
    Data: dedicated database (schema «gym») through the single server gateway rpc/gym_api; device copy + offline queue.
    Access: «اشتراک‌ها ← ماتریس دسترسی ← باشگاه پات کلاب» per plan, enforced on the server and mirrored in the UI. */
-const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.4.0'};
+const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.5.0'};
 /*GEO*/
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const fa=v=>String(v).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
@@ -269,7 +269,7 @@ function vSummary(){
   if(can('gym.summary.next'))sec.push(`
   <div class="sec"><h3>${ns.today?'تمرین امروز':'جلسهٔ بعدی'}<small>${esc(P.name)}</small></h3>
    <div class="hero" data-act="session" data-d="${ns.di}">
-    <img src="assets/hero_${k}.webp" alt="" fetchpriority="high">
+    <img src="${AU(`assets/hero_${k}.webp`)}" alt="" fetchpriority="high">
     <div class="gr"></div>
     <div class="top"><span class="chip gold">${ns.when}</span>${can('gym.player.form')?`<button class="chip" data-act="player" aria-label="نمایش سه‌بعدی">${IC.cube}سه‌بعدی</button>`:''}</div>
     <div class="bt"><div><div class="k">روز ${esc(d.t)} · PuttClub Gym</div><h4>${ex.name}</h4><p class="num">${nf(d.sets)} ست × ${nf(d.reps)} تکرار · ${nf1(d.kg)} کیلوگرم · RPE ${d.rpe}</p></div>
@@ -312,7 +312,7 @@ function vTrain(){
     <div class="mc" style="margin-top:10px">${P.template===false?`برنامهٔ اختصاصی مربی${P.start?' — از '+fmtDM.format(new Date(P.start)):''}`:`برنامهٔ پیش‌فرض آکادمی برای ${CHAR[k]} — پس از تعیین برنامه توسط مربی، همین‌جا جایگزین می‌شود.`}</div>
   </div></div>`:'')+`
   <div class="sec"><h3>${WDL[sel]} <small class="num" style="color:var(--t2)">${fmtDS.format(selDate)}</small></h3>
-  ${d?`<div class="card tap" data-act="session" data-d="${sel}"><div class="exrow"><div class="th"><img src="assets/hero_${k}.webp" alt=""></div>
+  ${d?`<div class="card tap" data-act="session" data-d="${sel}"><div class="exrow"><div class="th"><img src="${AU(`assets/hero_${k}.webp`)}" alt=""></div>
      <div class="tx"><b>${ex.name}</b><span class="num">روز ${esc(d.t)} · ${nf(d.sets)} ست × ${nf(d.reps)} تکرار · ${nf1(d.kg)} کیلو</span><div class="tags">${ex.mus.map(m=>`<i>${m[0]}</i>`).join('')}${logged?'<i class="g">انجام شد</i>':''}</div></div><span class="chev">${IC.chevL}</span></div></div>
      ${cS?`<button class="btn-gold" style="width:100%;margin-top:12px" data-act="session" data-d="${sel}">${logged?'مشاهده و جلسهٔ دوباره':'شروع جلسه'}</button>`:''}`
    :`<div class="card rest-day">${IC.moon}<b>روز ریکاوری</b><p>بدن در استراحت قوی‌تر می‌شود. پیشنهاد: ۲۰ دقیقه پیاده‌روی سبک و تمرین‌های تحرک ستون فقرات سینه‌ای و لگن برای چرخش بهتر سوئینگ.</p></div>`}
@@ -335,7 +335,7 @@ function vMeas(){
   const wser=M.map(x=>x.weight).filter(v=>v!=null);
   return `<div class="mhead"><button data-act="mprev" ${S.mi>0?'':'disabled'} aria-label="قبلی">${IC.chevR}</button><div class="d num">${m?fmtDM.format(new Date(m.date)):'اندازه‌گیری ندارید'}</div><button data-act="mnext" ${S.mi<n-1?'':'disabled'} aria-label="بعدی">${IC.chevL}</button></div>
   <div class="mstage" id="mstage"><div class="glow"></div>
-   <img class="fig" id="figA" src="assets/fig_${pk()}.webp" alt="" style="opacity:${S.skin==='fig'||!can('gym.player.anatomy')?1:0}"><img class="fig" id="figB" src="assets/mus_${pk()}.webp" alt="" style="opacity:${S.skin==='mus'&&can('gym.player.anatomy')?1:0}" loading="lazy">
+   <img class="fig" id="figA" src="${AU(`assets/fig_${pk()}.webp`)}" alt="" style="opacity:${S.skin==='fig'||!can('gym.player.anatomy')?1:0}"><img class="fig" id="figB" src="${AU(`assets/mus_${pk()}.webp`)}" alt="" style="opacity:${S.skin==='mus'&&can('gym.player.anatomy')?1:0}" loading="lazy">
    <svg class="ov" id="mov"></svg><div id="mcards"></div>
    ${can('gym.player.anatomy')?`<div class="mtog"><button data-act="skin" data-s="fig" class="${S.skin==='fig'?'on':''}">بدن</button><button data-act="skin" data-s="mus" class="${S.skin==='mus'?'on':''}">عضلات</button></div>`:''}
   </div>
@@ -392,7 +392,7 @@ function vMuscles(){
   const rows=[['سینه‌ای بزرگ','chest','var(--r1)'],['دلتوئید قدامی','delt','var(--r2)'],['سه‌سر بازو','tri','var(--r3)']];
   const rec=recovery();
   return `<div class="sec" style="margin-top:16px"><div class="card" style="padding:0;overflow:hidden"><div style="position:relative;height:340px;background:radial-gradient(60% 60% at 50% 30%,rgba(233,196,106,.1),transparent 70%)">
-     <img src="assets/mus_${k}.webp" alt="" style="position:absolute;left:50%;top:6px;height:330px;transform:translateX(-50%)">
+     <img src="${AU(`assets/mus_${k}.webp`)}" alt="" style="position:absolute;left:50%;top:6px;height:330px;transform:translateX(-50%)">
      <div style="position:absolute;top:14px;right:16px"><div class="mt c3">ریکاوری عضلات هدف</div><div class="mv num">${nf(rec)}<small>٪</small></div></div>
      </div><div class="mc" style="padding:0 16px 14px;margin:0">رنگ گرم‌تر یعنی فشار بیشتر در پرس سینه — نمای آناتومی دقیق PuttClub Gym</div></div></div>
   <div class="sec"><h3>ست‌های این هفته</h3><div class="card" style="padding:6px 16px">${rows.map(([n,id,c])=>{const v=sets[id];return `<div class="mbar"><b>${n}</b><div class="tr"><i style="width:${clamp(v/hi*100,0,100)}%;background:${c}"></i><em style="inset-inline-start:${lo/hi*100}%"></em></div><span class="num">${nf1(v)}/${nf(hi)}</span></div>`;}).join('')}</div>
@@ -408,13 +408,13 @@ function vMe(){
   <div class="pf"><div class="avatar">${avatar()}</div><h2>${esc(p.name)} ${esc(p.family||'')}</h2><p>@${esc(p.user)}</p>
    <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">${p.hcp!=null?`<span class="chip">${IC.flag.replace('width="20" height="20"','width="14" height="14"')} هندیکپ ${nf(p.hcp)}</span>`:''}<span class="chip">${p.role==='admin'?'مدیر':'عضو آکادمی'}</span></div></div>
   <div class="sec"><h3>کاراکتر من</h3><div class="card"><div class="mc" style="margin:0">بدن سه‌بعدی تو در باشگاه و صفحهٔ پیشرفت — به‌صورت خودکار از جنسیت و سن انتخاب شده است.</div>
-   <div class="chars">${['m','f','t','g'].map(c=>`<button data-act="char" data-c="${c}" class="${c===k?'on':''}"><img src="assets/char_${c}.webp?v=/*CV*/" alt="" loading="lazy">${CHAR[c].split(' · ')[0]}<br><small style="font-weight:500;opacity:.7">${CHAR[c].split(' · ')[1]}</small></button>`).join('')}</div></div></div>
+   <div class="chars">${['m','f','t','g'].map(c=>`<button data-act="char" data-c="${c}" class="${c===k?'on':''}"><img src="${AU(`assets/char_${c}.webp`)}" alt="" loading="lazy">${CHAR[c].split(' · ')[0]}<br><small style="font-weight:500;opacity:.7">${CHAR[c].split(' · ')[1]}</small></button>`).join('')}</div></div></div>
   <div class="sec"><h3>مشخصات</h3><div class="list">${p.acc?row('اشتراک',p.acc.staff?'مدیر · دسترسی کامل':esc(PLAN_FA[p.acc.plan]||p.acc.plan||'—')+(p.acc.end?' · تا '+fmtDM.format(new Date(String(p.acc.end).slice(0,10)+'T12:00:00')):'')):''}${row('سن',p.age!=null?nf(p.age)+' سال':'—')}${row('جنسیت',esc(p.gender||'—'))}${row('قد',last&&last.height?nf1(last.height)+' cm':'—')}${row('وزن',last&&last.weight?nf1(last.weight)+' kg':'—')}</div></div>
   <div class="sec"><h3>تنظیمات</h3><div class="list">${tg('tsound','صدای پایان استراحت',S.data.set.sound)}${tg('tvib','لرزش',S.data.set.vib,'در دستگاه‌های پشتیبانی‌شده')}</div></div>
   <div class="sec"><h3>همگام‌سازی</h3><div class="card"><div class="mc sync" id="syncst" style="margin:0;line-height:1.9">${esc(syncText())}</div></div></div>
   ${standalone?'':`<div class="sec"><h3>نصب روی گوشی</h3><div class="card"><div class="mc" style="margin:0;line-height:2">آیفون: در Safari دکمهٔ «اشتراک‌گذاری» ← «Add to Home Screen».<br>اندروید: منوی مرورگر ← «نصب برنامه».</div></div></div>`}
   <div class="sec"><div class="list"><button class="li" style="width:100%" data-act="logout"><div class="tx"><b class="danger">خروج از حساب</b></div></button></div></div>
-  <div class="foot"><img class="flogo" src="assets/logo_full.webp?v=/*EV*/" alt="PuttClub Gym" loading="lazy"><br>PuttClub Gym نسخهٔ ${fa(CFG.ver)}<br>بدن‌ها: Microsoft Rocketbox (MIT) · آناتومی: Z-Anatomy و BodyParts3D (CC BY-SA)<br><a href="play/CREDITS.txt" style="color:var(--t3)">منابع و مجوزها</a></div>`;}
+  <div class="foot"><img class="flogo" src="${AU(`assets/logo_full.webp`)}" alt="PuttClub Gym" loading="lazy"><br>PuttClub Gym نسخهٔ ${fa(CFG.ver)}<br>بدن‌ها: Microsoft Rocketbox (MIT) · آناتومی: Z-Anatomy و BodyParts3D (CC BY-SA)<br><a href="play/CREDITS.txt" style="color:var(--t3)">منابع و مجوزها</a></div>`;}
 
 /* ---------- render & navigation ---------- */
 const VIEWS={summary:vSummary,train:vTrain,progress:vProgress,me:vMe};
@@ -443,7 +443,7 @@ function renderSession(){
   const plate=(kg)=>{const side=(kg-P.bar)/2;return side>0?`هر طرف ${nf1(side)} کیلو + هالتر ${nf(P.bar)} کیلویی`:`فقط هالتر ${nf(P.bar)} کیلویی`;};
   $('#push').innerHTML=`<div class="bar" id="pbar"><button class="bk" data-act="back">${IC.chevR}<span>بازگشت</span></button><div class="clock" id="clock">${hhmmss((Date.now()-Date.parse(A.start))/1000)}</div></div>
   <div class="body" id="pbody">
-   <div class="sx-hero"><img src="assets/hero_${k}.webp" alt=""><div class="gr"></div>${can('gym.player.form')?`<button class="chip p3" data-act="player">${IC.cube} نمایش سه‌بعدی فرم صحیح</button>`:''}</div>
+   <div class="sx-hero"><img src="${AU(`assets/hero_${k}.webp`)}" alt=""><div class="gr"></div>${can('gym.player.form')?`<button class="chip p3" data-act="player">${IC.cube} نمایش سه‌بعدی فرم صحیح</button>`:''}</div>
    <div class="sx-t"><div class="k">روز ${esc(d.t)} · ${WDL[A.day]}</div><h2>${ex.name}</h2><div class="en">${ex.en} · ${ex.eq}</div>
     <div class="tags">${ex.mus.map((m,i)=>`<i class="${i?'':'g'}">${m[0]}</i>`).join('')}</div>
     <div class="rx num"><div><small>ست × تکرار</small><b>${nf(d.sets)} × ${nf(d.reps)}</b></div><div><small>بار</small><b>${nf1(d.kg)} kg</b></div><div><small>سختی هدف</small><b>RPE ${d.rpe}</b></div><div><small>تمپو</small><b>${d.tempo}</b></div><div><small>استراحت</small><b>${mmss(d.rest)}</b></div><div><small>هالتر</small><b>${nf(P.bar)} kg</b></div></div></div>
@@ -483,15 +483,73 @@ function finish(){
   setTimeout(()=>animRings($('#sheet')),60);
 }
 /* ---------- 3D player (lazy, full screen) ---------- */
+/* ---------- offline package: all heavy files (3D player + images) live in IndexedDB.
+   Downloaded once via the «بروزرسانی» screen; later only changed files (by hash) are fetched.
+   version.json is always read fresh (no cache), so a new release is detected immediately. ---------- */
+const PKG={code:'/*CODEV*/',files:/*PKGFILES*/};   // what THIS build expects: {path:[hash,bytes]}
+const PK={db:null,urls:{},meta:LS.get('pcgym.pkg')||{},checked:0,busy:false};
+function pkDB(){return PK.db||(PK.db=new Promise((ok,no)=>{const r=indexedDB.open('pcgym-pkg',1);r.onupgradeneeded=()=>r.result.createObjectStore('f');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);}));}
+async function pkTx(mode,fn){const db=await pkDB();return new Promise((ok,no)=>{const t=db.transaction('f',mode),st=t.objectStore('f');const r=fn(st);t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>no(t.error);t.onabort=()=>no(t.error);});}
+const pkGet=p=>pkTx('readonly',st=>st.get(p)),pkPut=(p,v)=>pkTx('readwrite',st=>{st.put(v,p);}),pkDel=p=>pkTx('readwrite',st=>{st.delete(p);});
+const MIMEX={webp:'image/webp',png:'image/png',html:'text/html;charset=utf-8',jpg:'image/jpeg'};
+const mimeOf=p=>MIMEX[p.split('.').pop()]||'application/octet-stream';
+function AU(p){return PK.urls[p]||(p+'?v='+((PKG.files[p]||[])[0]||''));}
+const pkHave=files=>Object.keys(files).filter(p=>PK.meta[p]===files[p][0]);
+async function pkMountImages(){for(const p of pkHave(PKG.files)){if(PK.urls[p]||/\.html$/.test(p))continue;try{const v=await pkGet(p);if(v)PK.urls[p]=URL.createObjectURL(new Blob([v],{type:mimeOf(p)}));else{delete PK.meta[p];}}catch(e){}}
+  LS.set('pcgym.pkg',PK.meta);document.documentElement.style.setProperty('--lbg',`url("${AU('assets/login_bg.webp')}")`);}
+async function pkRemote(){const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('v'+r.status);return r.json();}
+const mb=b=>fa((b/1048576).toFixed(1));const szT=b=>b<1048576?fa(Math.max(1,Math.round(b/1024)))+' کیلوبایت':mb(b)+' مگابایت';
+/* returns when the app may start; shows the gate when files are missing/changed or a new release exists */
+async function pkEnsure(){
+  let R=null;try{R=await pkRemote();}catch(e){}
+  PK.checked=Date.now();
+  const files=R?R.files:PKG.files;const need=Object.keys(files).filter(p=>PK.meta[p]!==files[p][0]);
+  const newCode=R&&R.code!==PKG.code;
+  if(!need.length&&!newCode){await pkMountImages();return;}
+  if(!need.length&&newCode)return pkReload(R.code);
+  await pkGate(R,need,!R);
+}
+function pkReload(code){const k='pcgym.rl.'+code;if(sessionStorage.getItem(k)){pkMountImages();return;}sessionStorage.setItem(k,1);location.replace('./?u='+code);return new Promise(()=>{});}
+function pkGate(R,need,offline){return new Promise(done=>{
+  const files=R?R.files:PKG.files,total=need.reduce((a,p)=>a+files[p][1],0),first=!Object.keys(PK.meta).length;
+  const g=document.createElement('div');g.id='upd';
+  g.innerHTML=`<div class="uc"><div class="ui">${IC.down||''}</div><h2>${first?'آماده‌سازی برنامه':'بروزرسانی'}</h2>
+   <p>${offline?'برای بار اول به اینترنت نیاز است. اتصال را بررسی کنید و دوباره بزنید.':first?`همهٔ داده‌های برنامه (صحنهٔ سه‌بعدی و تصاویر) یک بار دانلود و روی گوشی ذخیره می‌شود — بعد از آن بدون دانلود باز می‌شود.`:`نسخهٔ جدید برنامه آماده است. فقط بخش‌های تغییرکرده دانلود می‌شود.`}</p>
+   <div class="sz">${offline?'':`حجم دانلود: ${szT(total)}`}</div>
+   <div class="pb"><i></i></div><div class="pt"></div>
+   <button class="btn-gold" id="updb">${offline?'تلاش دوباره':'بروزرسانی'}</button></div>`;
+  document.body.appendChild(g);requestAnimationFrame(()=>g.classList.add('on'));
+  const bar=g.querySelector('.pb i'),pt=g.querySelector('.pt'),b=g.querySelector('#updb');
+  b.onclick=async()=>{
+    if(offline){g.remove();done(pkEnsure());return;}
+    b.disabled=true;b.innerHTML='<span class="spin"></span>';g.classList.add('run');try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist();}catch(e){}
+    let got=0;const show=()=>{bar.style.width=(100*Math.min(1,got/Math.max(1,total)))+'%';pt.textContent=total<1048576?`${szT(got)} از ${szT(total)}`:`${mb(got)} از ${mb(total)} مگابایت`;};show();
+    try{for(const p of need){const [h,sz]=files[p];const r=await fetch(p+'?v='+h,{cache:'no-store'});if(!r.ok)throw new Error(p+' '+r.status);
+        const parts=[];const rd=r.body&&r.body.getReader?r.body.getReader():null;
+        if(rd){for(;;){const {done:d,value}=await rd.read();if(d)break;parts.push(value);got+=value.length;show();}}else{const ab=await r.arrayBuffer();parts.push(new Uint8Array(ab));got+=ab.byteLength;show();}
+        const buf=await new Blob(parts).arrayBuffer();await pkPut(p,buf);PK.meta[p]=h;LS.set('pcgym.pkg',PK.meta);}
+      for(const p of Object.keys(PK.meta))if(!files[p]){delete PK.meta[p];pkDel(p).catch(()=>{});}LS.set('pcgym.pkg',PK.meta);
+      pt.textContent='انجام شد ✓';bar.style.width='100%';
+      if(R&&R.code!==PKG.code){await new Promise(r=>setTimeout(r,400));pkReload(R.code);return;}
+      Object.values(PK.urls).forEach(u=>URL.revokeObjectURL(u));PK.urls={};await pkMountImages();
+      setTimeout(()=>{g.classList.remove('on');setTimeout(()=>g.remove(),400);done();},500);
+    }catch(e){b.disabled=false;b.textContent='تلاش دوباره';g.classList.remove('run');pt.textContent='خطا در دانلود — اتصال اینترنت را بررسی کنید';}
+  };
+});}
+/* a release published while the app is open/in background → the gate appears on return */
+async function pkRecheck(){if(PK.busy||document.getElementById('upd')||Date.now()-PK.checked<45000)return;PK.busy=true;
+  try{const R=await pkRemote();PK.checked=Date.now();const need=Object.keys(R.files).filter(p=>PK.meta[p]!==R.files[p][0]);
+    if(R.code!==PKG.code||need.length){if(!need.length){pkReload(R.code);return;}await pkGate(R,need,false);if(document.getElementById('player')?.classList.contains('on'))closePlayer();render&&S.prof&&S.sess&&render();}}catch(e){}finally{PK.busy=false;}}
 const PLAYER_BYTES=14.9e6;let playerWarm=false;
 async function openPlayer(){
   if(!can('gym.player.form')){toast('نمایش سه‌بعدی در اشتراک شما فعال نیست');return;}
   const pl=$('#player'),k=pk();
-  pl.innerHTML=`<div class="ld" id="pld"><img class="bg" src="assets/hero_${k}.webp" alt=""><div class="c"><svg width="74" height="74" viewBox="0 0 74 74"><circle cx="37" cy="37" r="32" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="5"/><circle id="pring" cx="37" cy="37" r="32" fill="none" stroke="var(--gold)" stroke-width="5" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201" transform="rotate(-90 37 37)" style="transition:stroke-dashoffset .3s"/><image href="assets/emblem.webp?v=/*EV*/" x="21" y="21" width="32" height="32"/></svg><b>در حال ورود به PuttClub Gym</b><span id="ptxt">آماده‌سازی صحنهٔ سه‌بعدی…</span></div></div>
+  pl.innerHTML=`<div class="ld" id="pld"><img class="bg" src="${AU(`assets/hero_${k}.webp`)}" alt=""><div class="c"><svg width="74" height="74" viewBox="0 0 74 74"><circle cx="37" cy="37" r="32" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="5"/><circle id="pring" cx="37" cy="37" r="32" fill="none" stroke="var(--gold)" stroke-width="5" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201" transform="rotate(-90 37 37)" style="transition:stroke-dashoffset .3s"/><image href="${AU(`assets/emblem.webp`)}" x="21" y="21" width="32" height="32"/></svg><b>در حال ورود به PuttClub Gym</b><span id="ptxt">آماده‌سازی صحنهٔ سه‌بعدی…</span></div></div>
    <div class="top"><button class="gbtn" data-act="closeplayer" aria-label="بستن">${IC.x}</button><div class="tt">پرس سینه با هالتر<small>${CHAR[k]}</small></div><span style="width:40px"></span></div>`;
   pl.classList.add('on');
-  const src='play/bench-press.html?embed=1&p='+k+(can('gym.player.anatomy')?'':'&mus=0');
-  if(!playerWarm){try{const r=await fetch('play/bench-press.html',{cache:'default'});if(r.body&&r.body.getReader){const rd=r.body.getReader();let got=0;for(;;){const {done,value}=await rd.read();if(done)break;got+=value.length;const f=Math.min(.99,got/PLAYER_BYTES);const pr=$('#pring');if(!pr)return;pr.style.strokeDashoffset=201*(1-f);$('#ptxt').textContent=fa(Math.round(f*100))+'٪ · بار اول کمی طول می‌کشد';}}else await r.blob();playerWarm=true;}catch(e){}}
+  const qs='embed=1&p='+k+(can('gym.player.anatomy')?'':'&mus=0');let src='play/bench-press.html?'+qs;
+  const PP='play/bench-press.html';if(PK.meta[PP]&&PKG.files[PP]&&PK.meta[PP]===PKG.files[PP][0]){try{const v=await pkGet(PP);if(v){if(PK.purl)URL.revokeObjectURL(PK.purl);PK.purl=URL.createObjectURL(new Blob([v],{type:mimeOf(PP)}));src=PK.purl+'#'+qs;playerWarm=true;}}catch(e){}}
+  if(!playerWarm){try{const r=await fetch(AU('play/bench-press.html'),{cache:'default'});if(r.body&&r.body.getReader){const rd=r.body.getReader();let got=0;for(;;){const {done,value}=await rd.read();if(done)break;got+=value.length;const f=Math.min(.99,got/PLAYER_BYTES);const pr=$('#pring');if(!pr)return;pr.style.strokeDashoffset=201*(1-f);$('#ptxt').textContent=fa(Math.round(f*100))+'٪ · بار اول کمی طول می‌کشد';}}else await r.blob();playerWarm=true;}catch(e){}}
   if(!pl.classList.contains('on'))return;
   const pr=$('#pring');if(pr)pr.style.strokeDashoffset=0;$('#ptxt')&&($('#ptxt').textContent='ساخت صحنه و نورپردازی…');
   const f=document.createElement('iframe');f.src=src;f.allow='fullscreen';f.title='PuttClub Gym 3D';
@@ -541,10 +599,11 @@ $('#lform').addEventListener('submit',async e=>{e.preventDefault();const b=$('#l
   try{await signIn($('#lu').value,$('#lp').value);enter();}catch(err){$('#lerr').textContent=err.message;}finally{b.disabled=false;b.textContent='ورود';}});
 /* فقط حساب واقعی سایت: پروفایل نمایشیِ قدیمی (نسخه‌های پیشین) پاک می‌شود */
 if(S.prof&&!S.sess){S.prof=null;LS.del('pcgym.profile');}
-if(S.prof&&S.sess)enter();else showLogin('');
+pkEnsure().then(()=>{if(S.prof&&S.sess)enter();else showLogin('');});
 /* live: access-matrix / program / data changes from the academy arrive without re-login */
 addEventListener('online',()=>{SYNC.flush();refresh();});
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S.sess&&Date.now()-lastRefresh>60000)refresh();});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')return;pkRecheck();if(S.sess&&Date.now()-lastRefresh>60000)refresh();});
+addEventListener('pageshow',e=>{if(e.persisted)pkRecheck();});
 setInterval(()=>{if(document.visibilityState==='visible'&&S.sess&&Date.now()-lastRefresh>300000)refresh();},60000);
-if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{});
   let reloaded=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(reloaded||(S.data&&S.data.active))return;reloaded=true;location.reload();});}

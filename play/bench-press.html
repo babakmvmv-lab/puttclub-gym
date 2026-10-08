@@ -5658,7 +5658,7 @@ function levelState(n){
 function create(o){
   const {R,scene,cam,stage}=o;
   const isGL2=R.capabilities.isWebGL2;
-  const qs=new URLSearchParams(location.search);
+  const qs=new URLSearchParams((location.search||location.hash.replace('#','?')));
   const forced=qs.has('q')?Math.max(0,Math.min(STEPS.length,parseInt(qs.get('q'))||0)):null;
   const mobile=matchMedia('(pointer:coarse)').matches||Math.min(screen.width,screen.height)<500;
   if(mobile)CAP={shadow:2048,msaa:2,ao:.5,res:.85};
@@ -5881,7 +5881,7 @@ return {create,STEPS};
    موتور: IK پارامتری → نگاشت جهت استخوان‌ها روی اسکلت Bip01 (Microsoft Rocketbox, MIT) */
 const V=(x,y,z)=>new THREE.Vector3(x,y,z);
 /* PuttClub Gym app: ?embed=1 → full-screen stage without side panel; ?p=m|f|g|t → athlete profile */
-const QP=new URLSearchParams(location.search);const P0=/^[mfgt]$/.test(QP.get('p')||'')?QP.get('p'):'m';
+const QP=new URLSearchParams((location.search||location.hash.replace('#','?')));const P0=/^[mfgt]$/.test(QP.get('p')||'')?QP.get('p'):'m';
 if(QP.has('embed'))document.body.classList.add('embed');
 const D=Math.PI/180;
 const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
@@ -6432,10 +6432,10 @@ function pose(s){
 /* ---------- render remaster: HDR pipeline, AO, contact shadows, probe, adaptive quality (gym_render.js) ---------- */
 /* robust: if the advanced pipeline can't start on this device, fall back to the plain renderer (old look) */
 function plainRX(){R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.05;
-  if(/[?&]debug\b/.test(location.search))setTimeout(()=>{const d=document.createElement('pre');d.style.cssText='position:fixed;left:6px;bottom:6px;z-index:99;font:10px monospace;color:#ff9;background:rgba(0,0,0,.7);padding:6px;border-radius:8px;direction:ltr;pointer-events:none';d.textContent='PLAIN renderer · '+(window.__rxErr||'init/lite');document.body.appendChild(d);},500);
+  if(/[?&]debug\b/.test((location.search||location.hash.replace('#','?'))))setTimeout(()=>{const d=document.createElement('pre');d.style.cssText='position:fixed;left:6px;bottom:6px;z-index:99;font:10px monospace;color:#ff9;background:rgba(0,0,0,.7);padding:6px;border-radius:8px;direction:ltr;pointer-events:none';d.textContent='PLAIN renderer · '+(window.__rxErr||'init/lite');document.body.appendChild(d);},500);
   return {plain:true,render(){R.setRenderTarget(null);R.render(scene,cam);},setSize(w,h){R.setPixelRatio(Math.min(2,devicePixelRatio));R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();},
     setDof(){},contact:{setCasters(){},render(){}},probe:{capture(){},setHide(){}}};}
-let rx;try{if(/[?&]lite\b/.test(location.search))throw new Error('lite mode');rx=RX.create({R,scene,cam,stage,key,rectLights:[topBox,fillBox],
+let rx;try{if(/[?&]lite\b/.test((location.search||location.hash.replace('#','?'))))throw new Error('lite mode');rx=RX.create({R,scene,cam,stage,key,rectLights:[topBox,fillBox],
   prepassHide:o=>(o.isSkinnedMesh&&o.userData.sb&&musV>.5)||(cur&&cur.hair&&cur.hair.meshes.includes(o)),
   cards:[[1.0,1.0,0xffd8a0,7,key.position.clone(),key.target.position.clone()],[.9,.9,0x7fe6c8,3.5,rim.position.clone(),rim.target.position.clone()],
          [1.5,.5,0xfff0dc,5,topBox.position.clone(),V(.12,0,0)],[1.8,1.2,0xd8e4ff,1.2,fillBox.position.clone(),V(.2,.65,0)]],

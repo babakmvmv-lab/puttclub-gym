@@ -22,7 +22,7 @@ svg{display:block}
 
 /* ---------- login ---------- */
 #login{position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;justify-content:flex-end;background:#000;overflow:hidden}
-#login .bg{position:absolute;inset:0;background:#000 url(assets/login_bg.webp) center 30%/cover no-repeat;transform:scale(1.04);animation:kb 22s var(--ease) infinite alternate}
+#login .bg{position:absolute;inset:0;background:#000 var(--lbg) center 30%/cover no-repeat;transform:scale(1.04);animation:kb 22s var(--ease) infinite alternate}
 @keyframes kb{to{transform:scale(1.0) translateY(-1.5%)}}
 #login .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.45) 0%,rgba(0,0,0,0) 14%,rgba(0,0,0,0) 36%,rgba(0,0,0,0) 47%,rgba(0,0,0,.8) 63%,#000 88%)}
 #login .brand{position:absolute;top:calc(var(--sat) + 5.5vh);inset-inline:0;text-align:center}
@@ -325,3 +325,18 @@ svg{display:block}
 .mc.sync{display:flex;gap:8px;align-items:center}
 .mc.sync::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:#3ddc84;box-shadow:0 0 10px rgba(61,220,132,.6)}
 .mc.sync.warn::before{background:var(--gold);box-shadow:0 0 10px rgba(233,196,106,.55)}
+
+/* update / package gate (before entering) */
+#upd{position:fixed;inset:0;z-index:200;background:radial-gradient(120% 80% at 50% 0%,#14251b 0%,#000 62%);display:flex;align-items:center;justify-content:center;padding:28px;opacity:0;transition:opacity .35s var(--ease)}
+#upd.on{opacity:1}
+#upd .uc{width:100%;max-width:360px;text-align:center}
+#upd .ui{width:64px;height:64px;margin:0 auto 18px;border-radius:20px;display:grid;place-items:center;background:rgba(212,175,95,.12);color:var(--gold)}
+#upd .ui svg{width:30px;height:30px}
+#upd h2{font-size:24px;font-weight:800;margin:0 0 10px}
+#upd p{color:var(--t2);font-size:14px;line-height:1.9;margin:0 0 14px}
+#upd .sz{color:var(--gold);font-size:13px;font-weight:700;margin-bottom:18px;min-height:18px}
+#upd .pb{height:6px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;opacity:0;transition:opacity .3s}
+#upd .pb i{display:block;height:100%;width:0;background:linear-gradient(90deg,#b8913f,var(--gold));border-radius:6px;transition:width .2s}
+#upd .pt{color:var(--t3);font-size:12px;margin:8px 0 18px;min-height:16px}
+#upd.run .pb{opacity:1}
+#upd .btn-gold{width:100%}

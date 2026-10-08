@@ -6,10 +6,18 @@ sh=open(f'{R}/src/shell.html').read(); css=open(f'{R}/src/app.css').read(); js=o
 # cache-busting: تصویر عوض شود → آدرس عوض می‌شود (کش مرورگر/Pages نسخهٔ قدیمی را نشان ندهد)
 import hashlib as _h
 _fh=lambda *ps:_h.sha1(b''.join(open(f'{R}/'+p,'rb').read() for p in ps)).hexdigest()[:8]
-_lv=_fh('assets/login_bg.webp'); css=css.replace('url(assets/login_bg.webp)',f'url(assets/login_bg.webp?v={_lv})'); sh=sh.replace('href="assets/login_bg.webp"',f'href="assets/login_bg.webp?v={_lv}"')
 _iv=_fh('icons/apple-touch-icon.png','icons/icon-192.png','icons/favicon-64.png'); sh=sh.replace('href="icons/apple-touch-icon.png"',f'href="icons/apple-touch-icon.png?v={_iv}"').replace('href="icons/favicon-64.png"',f'href="icons/favicon-64.png?v={_iv}"')
-_ev=_fh('assets/emblem.webp','assets/logo_full.webp'); assert js.count('/*EV*/')==2; js=js.replace('/*EV*/',_ev)
-assert js.count('/*CV*/')==1; js=js.replace('/*CV*/',_fh(*[f'assets/char_{k}.webp' for k in 'mftg']))
+# offline package: every heavy file with content hash + size; version.json is read fresh by the app
+_pk={}
+for _d in ['assets','play']:
+    for _f in sorted(os.listdir(f'{R}/{_d}')):
+        if _f.endswith(('.webp','.png','.jpg','.html')):
+            _b=open(f'{R}/{_d}/{_f}','rb').read();_pk[f'{_d}/{_f}']=[_h.sha1(_b).hexdigest()[:10],len(_b)]
+_code=_h.sha1((sh+css+js+json.dumps(_pk,sort_keys=True)).encode()).hexdigest()[:10]
+assert js.count('/*CODEV*/')==1 and js.count('/*PKGFILES*/')==1
+js=js.replace('/*CODEV*/',_code).replace('/*PKGFILES*/',json.dumps(_pk,separators=(',',':')))
+json.dump({'code':_code,'files':_pk},open(f'{R}/version.json','w'),separators=(',',':'))
+print('package',len(_pk),'files',round(sum(v[1] for v in _pk.values())/1048576,1),'MB · code',_code)
 geo=open(f'{R}/.geo.js').read()
 assert js.count('/*GEO*/')==1; js=js.replace('/*GEO*/',geo)
 # tab icons: reuse the IC table from app.js

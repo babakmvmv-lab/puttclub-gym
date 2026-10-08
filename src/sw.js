@@ -1,18 +1,12 @@
-/* PuttClub Gym service worker: precached app shell + cache-first 3D player. Never touches API calls (other origins). */
-const V='pcgym-/*V*/';
-const SHELL=['./','index.html','manifest.webmanifest','fonts/vazirmatn-arabic-wght-normal.woff2','fonts/vazirmatn-latin-wght-normal.woff2',
- 'assets/login_bg.webp','assets/emblem.webp','assets/logo_full.webp','icons/icon-192.png',
- ...['m','f','g','t'].flatMap(k=>[`assets/hero_${k}.webp`,`assets/fig_${k}.webp`,`assets/mus_${k}.webp`,`assets/char_${k}.webp`])];
-const PLAY='pcgym-play-/*PV*/';
-self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(SHELL.map(u=>new Request(u,{cache:'reload'})))).then(()=>self.skipWaiting()));});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V&&k!==PLAY).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
+/* PuttClub Gym service worker (https only). Heavy files live in IndexedDB (app.js «offline package»),
+   so the SW never caches assets or the 3D player — it only keeps the latest page for offline start.
+   Navigation is network-first with no HTTP cache, so a new release is picked up immediately. */
+const V='pcgym-shell-/*V*/';
+self.addEventListener('install',e=>{self.skipWaiting();});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',e=>{
   const u=new URL(e.request.url);
-  if(e.request.method!=='GET'||u.origin!==location.origin)return;
-  if(u.pathname.includes('/play/')){  // big 3D build: cache-first (ignore ?embed&p), refreshed when the cache version changes
-    e.respondWith(caches.open(PLAY).then(async c=>{const key=u.origin+u.pathname;const hit=await c.match(key);if(hit)return hit;
-      const r=await fetch(key);if(r.ok)c.put(key,r.clone());return r;}));return;}
-  if(e.request.mode==='navigate'){  // network-first for the shell so updates arrive; offline → cached shell
-    e.respondWith(fetch(e.request).then(r=>{const cp=r.clone();caches.open(V).then(c=>c.put('index.html',cp));return r;}).catch(()=>caches.match('index.html')));return;}
-  e.respondWith(caches.match(e.request,{ignoreSearch:true}).then(h=>h||fetch(e.request).then(r=>{if(r.ok){const cp=r.clone();caches.open(V).then(c=>c.put(e.request,cp));}return r;})));
+  if(e.request.method!=='GET'||u.origin!==location.origin||e.request.mode!=='navigate')return;
+  e.respondWith(fetch(e.request,{cache:'no-store'}).then(r=>{if(r.ok){const cp=r.clone();caches.open(V).then(c=>c.put('index.html',cp));}return r;})
+    .catch(()=>caches.open(V).then(c=>c.match('index.html')).then(h=>h||Response.error())));
 });
