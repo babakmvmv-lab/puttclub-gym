@@ -5527,6 +5527,10 @@ function create(o){
   if(mobile)CAP={shadow:2048,msaa:2,ao:.5,res:.85};
   let level=forced!=null?forced:0;
   const SAFE={noMsaa:false,noAO:false,noPost:false,broken:'',stage:0,checks:[]};
+  /* Apple GPUs (iOS / Safari on ANGLE-Metal): multisampled half-float targets report "complete" but render black
+     (confirmed on device: checks f6:0.1 → f14:69.4 after MSAA off). Skip MSAA up front; use the headroom for full resolution. */
+  {const g=R.getContext(),ri=g.getExtension('WEBGL_debug_renderer_info'),gpu=ri?String(g.getParameter(ri.UNMASKED_RENDERER_WEBGL)):'';
+   if(/apple/i.test(gpu)){SAFE.noMsaa=true;SAFE.checks.push('apple:no-msaa');if(CAP)CAP.res=1;}}
   const lvl=n=>{const q=levelState(n);if(SAFE.noMsaa)q.msaa=0;if(SAFE.noAO)q.ao=0;if(SAFE.noPost)q.post=2;return q;};
   let Q=lvl(level);
   const basePR=Math.min(2,devicePixelRatio||1);
@@ -5675,7 +5679,7 @@ function create(o){
     const avg=sum/(24*24*3);SAFE.checks.push('f'+frameNo+':'+avg.toFixed(1));
     if(avg>=3)return true;
     SAFE.stage++;
-    if(SAFE.stage===1){SAFE.noMsaa=true;}
+    if(SAFE.stage===1){SAFE.noMsaa=true;if(CAP)CAP.res=1;}
     else if(SAFE.stage===2){SAFE.noAO=true;SAFE.noPost=true;}
     else{SAFE.broken='black frame after safe mode';return false;}
     applyQ();nextCheck=frameNo+8;return false;
