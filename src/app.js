@@ -3,7 +3,7 @@
    Auth: Supabase (same accounts as the academy panel — password changes / new users apply automatically).
    Data: dedicated database (schema «gym») through the single server gateway rpc/gym_api; device copy + offline queue.
    Access: «اشتراک‌ها ← ماتریس دسترسی ← باشگاه پات کلاب» per plan, enforced on the server and mirrored in the UI. */
-const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.3.1'};
+const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.4.0'};
 /*GEO*/
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const fa=v=>String(v).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
@@ -414,7 +414,7 @@ function vMe(){
   <div class="sec"><h3>همگام‌سازی</h3><div class="card"><div class="mc sync" id="syncst" style="margin:0;line-height:1.9">${esc(syncText())}</div></div></div>
   ${standalone?'':`<div class="sec"><h3>نصب روی گوشی</h3><div class="card"><div class="mc" style="margin:0;line-height:2">آیفون: در Safari دکمهٔ «اشتراک‌گذاری» ← «Add to Home Screen».<br>اندروید: منوی مرورگر ← «نصب برنامه».</div></div></div>`}
   <div class="sec"><div class="list"><button class="li" style="width:100%" data-act="logout"><div class="tx"><b class="danger">خروج از حساب</b></div></button></div></div>
-  <div class="foot">PuttClub Gym نسخهٔ ${fa(CFG.ver)}<br>بدن‌ها: Microsoft Rocketbox (MIT) · آناتومی: Z-Anatomy و BodyParts3D (CC BY-SA)<br><a href="play/CREDITS.txt" style="color:var(--t3)">منابع و مجوزها</a></div>`;}
+  <div class="foot"><img class="flogo" src="assets/logo_full.webp?v=/*EV*/" alt="PuttClub Gym" loading="lazy"><br>PuttClub Gym نسخهٔ ${fa(CFG.ver)}<br>بدن‌ها: Microsoft Rocketbox (MIT) · آناتومی: Z-Anatomy و BodyParts3D (CC BY-SA)<br><a href="play/CREDITS.txt" style="color:var(--t3)">منابع و مجوزها</a></div>`;}
 
 /* ---------- render & navigation ---------- */
 const VIEWS={summary:vSummary,train:vTrain,progress:vProgress,me:vMe};
@@ -487,7 +487,7 @@ const PLAYER_BYTES=14.9e6;let playerWarm=false;
 async function openPlayer(){
   if(!can('gym.player.form')){toast('نمایش سه‌بعدی در اشتراک شما فعال نیست');return;}
   const pl=$('#player'),k=pk();
-  pl.innerHTML=`<div class="ld" id="pld"><img class="bg" src="assets/hero_${k}.webp" alt=""><div class="c"><svg width="74" height="74" viewBox="0 0 74 74"><circle cx="37" cy="37" r="32" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="5"/><circle id="pring" cx="37" cy="37" r="32" fill="none" stroke="var(--gold)" stroke-width="5" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201" transform="rotate(-90 37 37)" style="transition:stroke-dashoffset .3s"/><image href="assets/emblem.webp" x="21" y="21" width="32" height="32"/></svg><b>در حال ورود به PuttClub Gym</b><span id="ptxt">آماده‌سازی صحنهٔ سه‌بعدی…</span></div></div>
+  pl.innerHTML=`<div class="ld" id="pld"><img class="bg" src="assets/hero_${k}.webp" alt=""><div class="c"><svg width="74" height="74" viewBox="0 0 74 74"><circle cx="37" cy="37" r="32" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="5"/><circle id="pring" cx="37" cy="37" r="32" fill="none" stroke="var(--gold)" stroke-width="5" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201" transform="rotate(-90 37 37)" style="transition:stroke-dashoffset .3s"/><image href="assets/emblem.webp?v=/*EV*/" x="21" y="21" width="32" height="32"/></svg><b>در حال ورود به PuttClub Gym</b><span id="ptxt">آماده‌سازی صحنهٔ سه‌بعدی…</span></div></div>
    <div class="top"><button class="gbtn" data-act="closeplayer" aria-label="بستن">${IC.x}</button><div class="tt">پرس سینه با هالتر<small>${CHAR[k]}</small></div><span style="width:40px"></span></div>`;
   pl.classList.add('on');
   const src='play/bench-press.html?embed=1&p='+k+(can('gym.player.anatomy')?'':'&mus=0');

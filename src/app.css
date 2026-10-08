@@ -207,6 +207,7 @@ svg{display:block}
 .tg.on::after{transform:translateX(-20px)}
 .danger{color:#ff6b5e}
 .foot{text-align:center;color:var(--t3);font-size:11px;line-height:2;margin-top:22px;padding:0 20px}
+.foot .flogo{width:132px;height:auto;display:inline-block;margin:4px 0 2px;opacity:.95}
 
 /* tab bar — floating liquid glass */
 #tabbar{position:absolute;z-index:30;bottom:calc(var(--sab) + 10px);left:50%;transform:translateX(-50%);width:min(calc(100% - 32px),420px);height:64px;border-radius:32px;display:flex;padding:5px;background:rgba(30,30,32,.55);-webkit-backdrop-filter:blur(30px) saturate(190%);backdrop-filter:blur(30px) saturate(190%);box-shadow:0 18px 50px rgba(0,0,0,.55),inset 0 .5px 0 rgba(255,255,255,.22),inset 0 0 0 .5px rgba(255,255,255,.1);transition:transform .35s var(--ease),opacity .3s}

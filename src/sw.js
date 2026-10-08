@@ -1,7 +1,7 @@
 /* PuttClub Gym service worker: precached app shell + cache-first 3D player. Never touches API calls (other origins). */
 const V='pcgym-/*V*/';
 const SHELL=['./','index.html','manifest.webmanifest','fonts/vazirmatn-arabic-wght-normal.woff2','fonts/vazirmatn-latin-wght-normal.woff2',
- 'assets/login_bg.webp','assets/emblem.webp','icons/icon-192.png',
+ 'assets/login_bg.webp','assets/emblem.webp','assets/logo_full.webp','icons/icon-192.png',
  ...['m','f','g','t'].flatMap(k=>[`assets/hero_${k}.webp`,`assets/fig_${k}.webp`,`assets/mus_${k}.webp`,`assets/char_${k}.webp`])];
 const PLAY='pcgym-play-/*PV*/';
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(SHELL.map(u=>new Request(u,{cache:'reload'})))).then(()=>self.skipWaiting()));});
