@@ -1,0 +1,16 @@
+PuttClub Gym — Smart Body previews
+- 3D human models: Microsoft Rocketbox Avatar Library (Sports_Male_04, Sports_Female_02, Male_Child_01)
+  https://github.com/microsoft/Microsoft-Rocketbox — MIT License, Copyright (c) 2020 Microsoft
+- Wall posters: AI-generated images of anonymous golfers (no real persons), made for PuttClub.
+- Gym equipment: original procedural 3D designs branded PuttClub (premium Italian-style design language; no third-party trademarks or copied products).
+- Rendering: three.js r160 (MIT).
+
+Anatomy layer (muscle view / نمایش عضله هدف)
+- Adapted from the "Fit Mit With" anatomy atlas (github.com/slfresh/fitmitwith-anatomy-atlas), CC BY-SA 4.0,
+  which is derived from:
+  * Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0 (https://github.com/Z-Anatomy/Models-of-human-anatomy)
+  * BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan
+- Changes by PuttClub: meshes fitted inside each Rocketbox character (segment mapping + radial envelope fit),
+  re-skinned to the character skeletons (depth-aware weights), deep hidden muscles removed, muscle tissue subdivided,
+  per-muscle fibre fields (harmonic origin->insertion + across-fibre coordinate) computed for shading.
+  The adapted anatomy data (src/assets/anat/*) is licensed CC BY-SA 4.0.
