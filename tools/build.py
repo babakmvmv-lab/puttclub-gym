@@ -6,7 +6,8 @@ sh=open(f'{R}/src/shell.html').read(); css=open(f'{R}/src/app.css').read(); js=o
 # cache-busting: تصویر عوض شود → آدرس عوض می‌شود (کش مرورگر/Pages نسخهٔ قدیمی را نشان ندهد)
 import hashlib as _h
 _fh=lambda *ps:_h.sha1(b''.join(open(f'{R}/'+p,'rb').read() for p in ps)).hexdigest()[:8]
-_lv=_fh('assets/login.webp'); css=css.replace('url(assets/login.webp)',f'url(assets/login.webp?v={_lv})'); sh=sh.replace('href="assets/login.webp"',f'href="assets/login.webp?v={_lv}"')
+_lv=_fh('assets/login_bg.webp'); css=css.replace('url(assets/login_bg.webp)',f'url(assets/login_bg.webp?v={_lv})'); sh=sh.replace('href="assets/login_bg.webp"',f'href="assets/login_bg.webp?v={_lv}"')
+_iv=_fh('icons/apple-touch-icon.png','icons/icon-192.png','icons/favicon-64.png'); sh=sh.replace('href="icons/apple-touch-icon.png"',f'href="icons/apple-touch-icon.png?v={_iv}"').replace('href="icons/favicon-64.png"',f'href="icons/favicon-64.png?v={_iv}"')
 assert js.count('/*CV*/')==1; js=js.replace('/*CV*/',_fh(*[f'assets/char_{k}.webp' for k in 'mftg']))
 geo=open(f'{R}/.geo.js').read()
 assert js.count('/*GEO*/')==1; js=js.replace('/*GEO*/',geo)
