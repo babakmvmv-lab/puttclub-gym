@@ -6673,9 +6673,9 @@ const bar=new THREE.Group();scene.add(bar);
 let LOADI=null;
 function buildBar(){
   while(bar.children.length){const c=bar.children.pop();c.traverse(o=>o.geometry&&o.geometry.dispose());}
-  if(isMV()){LOADI=mvLoad();return;}
+  if(isMV()&&!EXN.useBar&&!EXN.useDB){LOADI=mvLoad();return;}
   const b=barSpec(),half=b.len/2;
-  LOADI=EXN.eq==='db'?{db:curLoad()}:Object.assign({bar:b.kg,want:curLoad()},plateSplit(curLoad(),b.kg));
+  LOADI=EXN.eq==='db'?{db:curLoad(),one:!!EXN.one}:Object.assign({bar:b.kg,want:curLoad()},plateSplit(curLoad(),b.kg));
   if(EXN.eq==='db'){buildDB(curLoad());return;}
   const shaft=new THREE.Mesh(new THREE.CylinderGeometry(b.r,b.r,b.len,32),knurlM);shaft.rotation.x=Math.PI/2;shaft.castShadow=true;bar.add(shaft);
   for(const sg of [-1,1]){
@@ -6697,7 +6697,7 @@ function buildBar(){
 const trace=new THREE.Group();scene.add(trace);
 function buildTrace(){
   while(trace.children.length){const c=trace.children.pop();c.geometry.dispose();}
-  const pts=[];for(let i=0;i<=40;i++)pts.push(barPos(i/40).add(V(0,0,isMV()?(EXN.eq==='bw'?cur.dims.shW+.3:0):EXN.eq==='db'?.15:G.grip+.12)));
+  const pts=[];for(let i=0;i<=40;i++)pts.push(barPos(i/40).add(V(0,0,isMV()?(curMV().trOff!=null?curMV().trOff:EXN.eq==='bw'?cur.dims.shW+.3:0):EXN.eq==='db'?.15:G.grip+.12)));
   for(let i=0;i<40;i+=2){const a=pts[i],b=pts[i+1];const m=new THREE.Mesh(new THREE.CylinderGeometry(.006,.006,1,6),lineM);const d=b.clone().sub(a);m.position.copy(a).add(b).multiplyScalar(.5);m.scale.y=d.length();m.quaternion.setFromUnitVectors(UNIT_Y,d.normalize());trace.add(m);}
   [0,40].forEach(i=>{const s=new THREE.Mesh(new THREE.SphereGeometry(.014,12,10),lineM);s.position.copy(pts[i]);trace.add(s);});
 }
@@ -6903,19 +6903,23 @@ function poseRig(r,T){
   setWorldQ(pel,qP);
   pel.position.copy(pel.parent.worldToLocal(T.P.clone()));
   r.obj.updateMatrixWorld(true);
+  if(T.spine){const sp=T.spine,bs=['Bip01_Spine','Bip01_Spine1','Bip01_Spine2'].map(n=>r.bones[n]).filter(Boolean),k=1/Math.max(1,bs.length);
+    const qk=new THREE.Quaternion().setFromAxisAngle(up,(sp.twist||0)*k).multiply(new THREE.Quaternion().setFromAxisAngle(left,(sp.flex||0)*k)).multiply(new THREE.Quaternion().setFromAxisAngle(fwd,-(sp.side||0)*k));
+    for(const b of bs){const wq=b.getWorldQuaternion(new THREE.Quaternion());setWorldQ(b,qk.clone().multiply(wq));}r.obj.updateMatrixWorld(true);}
+  if(T.post)T.post(r,n=>r.bones[n].getWorldPosition(new THREE.Vector3()),{up,fwd,left});
   const out={};
   for(const side of ['L','R']){
     const sg=side==='L'?1:-1, B=n=>'Bip01_'+side+'_'+n;
     const wp=n=>r.bones[B(n)].getWorldPosition(new THREE.Vector3());
     // leg
     let a=wp('Thigh');
-    let kp=(T.kneePole||fwd).clone().add(left.clone().multiplyScalar(sg*(T.kneeOut||.15)));
+    let kp=((T.kneePole&&!T.kneePole.isVector3)?T.kneePole[side]:(T.kneePole||fwd)).clone().add(left.clone().multiplyScalar(sg*(T.kneeOut||.15)));
     let s=ik(a,T.feet[side],r.dims.thigh,r.dims.shin,kp);
     let d1=s.mid.clone().sub(a).normalize(),d2=s.end.clone().sub(s.mid).normalize();
     let h=new THREE.Vector3().crossVectors(d1,d2);if(h.length()<.05)h=left.clone();h.normalize();
     aim(r,B('Thigh'),d1,h);aim(r,B('Calf'),d2,h);
-    const tdir=((T.toeDir&&T.toeDir[side])||fwd).clone();if(!T.toeFree)tdir.setY(0);tdir.normalize();
-    const toe=s.end.clone().add(tdir.multiplyScalar(r.dims.foot*.92));if(!T.toeFree)toe.y=Math.min(toe.y,.02);
+    const tfree=T.toeFree===true||!!(T.toeFree&&T.toeFree[side]);const tdir=((T.toeDir&&T.toeDir[side])||fwd).clone();if(!tfree)tdir.setY(0);tdir.normalize();
+    const toe=s.end.clone().add(tdir.multiplyScalar(r.dims.foot*.92));if(!tfree)toe.y=Math.min(toe.y,.02);
     aim(r,B('Foot'),toe.clone().sub(s.end).normalize(),h);
     // arm
     a=wp('UpperArm');
@@ -7030,7 +7034,7 @@ function pose(s){
 let HENV={bench:{x0:-.51,x1:.75,zw:.15,top:BENCH_TOP}};
 function buildEquip(){
   const X=EXN;clearG(eqG);
-  if(isMV()){benchFlat.visible=false;rackFlat.visible=false;bar.visible=false;dbRoot.visible=false;HENV={bench:{x0:9,x1:9.1,zw:.01,top:-9}};
+  if(isMV()){benchFlat.visible=!!X.flatBench;rackFlat.visible=false;bar.visible=!!X.useBar;dbRoot.visible=!!(X.useDB||(LOADI&&LOADI.db>0));dbG[0].visible=dbG[1].visible=true;HENV={bench:{x0:9,x1:9.1,zw:.01,top:-9}};
     curMV().equip();eqG.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});const lc=document.getElementById('ldc');if(lc)lc.innerHTML=loadText();return;}
   benchFlat.visible=X.ang===0;rackFlat.visible=X.eq==='bb'&&X.ang===0;
   bar.visible=X.eq!=='db';dbRoot.visible=X.eq==='db';
@@ -7045,8 +7049,8 @@ function buildEquip(){
   const lc=document.getElementById('ldc');if(lc)lc.innerHTML=loadText();
 }
 const faN=x=>fa(String(Math.round(x*100)/100)).replace('.','٫');
-function loadText(){const L=LOADI;if(!L)return '';if(L.bw||L.stack)return mvLoadText(L);
-  if(L.db!=null)return `<b>${faN(L.db)}</b> کیلو <span>× ۲ دمبل</span>`;
+function loadText(){const L=LOADI;if(!L)return '';if(L.bw||L.stack||L.pl||L.ball)return mvLoadText(L);
+  if(L.db!=null)return `<b>${faN(L.db)}</b> کیلو <span>${L.one?'یک دمبل':'× ۲ دمبل'}</span>`;
   const sideTxt=L.plates.length?L.plates.map(faN).join(' + '):'بدون وزنه';
   return `<b>${faN(L.total)}</b> کیلو <span>${EXN.eq==='smith'?'میلهٔ اسمیت':'میله'} ${faN(L.bar)} · هر طرف ${sideTxt}</span>${L.rem>0?`<em>${faN(L.rem)} کیلو با این وزنه‌ها بسته نمی‌شود</em>`:''}`;}
 
@@ -7074,9 +7078,9 @@ function applyProfile(p){
   prof=PROF[p];
   if(cur){scene.remove(cur.obj);if(cur.hair)cur.hair.meshes.forEach(m=>scene.remove(m));}
   cur=buildRig(p);scene.add(cur.obj);if(cur.hair)cur.hair.meshes.forEach(m=>scene.add(m));tuneEnv();
-  LMOD=loadMods(EXN);geom();buildBar();buildEquip();buildTrace();rxCasters();
+  LMOD=loadMods(EXN);geom();buildBar();buildEquip();buildTrace();rxCasters();try{setMusRows();}catch(e){}
   document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
-  document.getElementById('prof').innerHTML=`<span>سن ${fa(prof.age)}</span><span>قد ${fa(prof.h)} سانتی‌متر</span><span>وزن ${fa(prof.w)} کیلو</span><span>${EXN.eq==='machine'?'دستگاه · وزنه‌خانه':EXN.eq==='cable'?'کراس‌اور سیم‌کش':EXN.eq==='bw'?'وزن بدن':EXN.eq==='db'?'دمبل '+faN(curLoad())+' کیلویی':(EXN.eq==='smith'?'اسمیت · میله ':'هالتر ')+faN(barSpec().kg)+' کیلویی'}</span>`;
+  document.getElementById('prof').innerHTML=`<span>سن ${fa(prof.age)}</span><span>قد ${fa(prof.h)} سانتی‌متر</span><span>وزن ${fa(prof.w)} کیلو</span><span>${EXN.eq==='machine'?'دستگاه · وزنه‌خانه':EXN.eq==='cable'?'سیم‌کش':EXN.eq==='pl'?'لندماین · صفحه‌ها':EXN.eq==='ball'?'مدیسین‌بال':EXN.eq==='bw'?'وزن بدن':EXN.eq==='db'?'دمبل '+faN(curLoad())+' کیلویی':(EXN.eq==='smith'?'اسمیت · میله ':'هالتر ')+faN(barSpec().kg)+' کیلویی'}</span>`;
   const x=prof.rx;
   document.getElementById('rx').innerHTML=`<div>ست<b>${x.sets}</b></div><div>تکرار<b>${x.reps}</b></div><div>بار<b>${x.load}</b></div><div>شدت<b>${x.pct}</b></div><div>سختی هدف<b>${x.rpe}</b></div><div>تمپو<b>${x.tempo}</b></div><div style="grid-column:span 3">استراحت بین ست‌ها<b>${x.rest}</b></div>`;
   document.getElementById('guard').classList.toggle('on',!!prof.guard);
@@ -7100,7 +7104,10 @@ R.domElement.addEventListener('wheel',e=>{e.preventDefault();camR=Math.min(6,Mat
 function resize(){rx.setSize(stage.clientWidth,stage.clientHeight);}
 addEventListener('resize',resize);
 const PHT={mpress:['بازگشت کنترل‌شده · دم','مکث در کشش','فشار · بازدم','قفل جلو · تنفس'],push:['پایین رفتن · دم','مکث پایین','فشار · بازدم','قفل بالا · تنفس'],dip:['پایین رفتن · دم','مکث پایین','فشار به بالا · بازدم','قفل بالا · تنفس'],press:['پایین آوردن · دم','مکث روی سینه','فشار · بازدم','قفل بالا · تنفس'],db:['پایین آوردن · دم','مکث در پایین','فشار · بازدم','بالای حرکت · تنفس'],
-  fly:['باز کردن · دم','کشش در پایین','جمع کردن · بازدم','بالای حرکت · تنفس']};
+  fly:['باز کردن · دم','کشش در پایین','جمع کردن · بازدم','بالای حرکت · تنفس'],
+  gen:['بازگشت کنترل‌شده · دم','مکث در کشش','انقباض · بازدم','مکث در انقباض'],squat:['پایین رفتن · دم','مکث پایین','بالا آمدن · بازدم','ایستادن کامل · تنفس'],
+  pull:['بازگشت کنترل‌شده · دم','کشش کامل','کشیدن · بازدم','انقباض کامل'],hold:['تنفس آرام','حفظ وضعیت','شکم سفت · بازدم','حفظ وضعیت'],
+  rot:['چرخش به عقب · دم','بارگیری','چرخش انفجاری · بازدم','پایان حرکت'],walk:['گام · تنفس','حفظ قامت','گام · تنفس','حفظ قامت'],mob:['حرکت آرام · دم','مکث در کشش','بازگشت · بازدم','وضعیت شروع']};
 function phaseOf(el){const [a,b,c,d]=prof.tempo;const T=a+b+c+d;const x=el%T;const cyc=Math.floor(el/T);
   const t=PHT[EXN.pht||(EXN.mv==='fly'?'fly':EXN.eq==='db'?'db':'press')];
   if(x<a)return{s:ease(x/a),ph:t[0],cyc,k:'ecc'};
@@ -7111,6 +7118,7 @@ function phaseOf(el){const [a,b,c,d]=prof.tempo;const T=a+b+c+d;const x=el%T;con
 const LOADT=new Float32Array(24);
 function benchLoads(k,s){
   const L={};
+  if(EXN.mus){const m=EXN.mus,ph=EXN.pht,hold=ph==='hold'||ph==='mob',fk=hold?.85+.1*s:k==='ecc'?.7+.12*s:k==='pause'?.86:k==='con'?.8+.2*(1-s):.16;for(const n in m)L[n]=Math.min(1,m[n]*fk);LOADT.fill(0);for(const n in L)if(SB.MI[n]!=null)LOADT[SB.MI[n]]=L[n];return;}
   if(k==='ecc'){Object.assign(L,{deltL:.22+.1*s,cuff:.3+.12*s,deltP:.08,pec:.62+.25*s,deltA:.5+.2*s,triceps:.42,biceps:.14,forearm:.34,serratus:.24,lats:.32,traps:.18,abs:.22,oblique:.14,glutes:.14,quads:.18,erector:.14});}
   else if(k==='pause'){Object.assign(L,{deltL:.3,cuff:.42,deltP:.1,pec:.9,deltA:.74,triceps:.5,biceps:.16,forearm:.38,serratus:.3,lats:.36,traps:.2,abs:.3,oblique:.18,glutes:.24,quads:.26,erector:.18});}
   else if(k==='con'){Object.assign(L,{deltL:.26+.12*s,cuff:.36+.12*s,deltP:.1,pec:.72+.28*s,deltA:.58+.3*s,triceps:.6+.4*(1-s),biceps:.12,forearm:.42,serratus:.36+.2*(1-s),lats:.26,traps:.2,abs:.32,oblique:.2,glutes:.3,quads:.32,erector:.2});}
@@ -7118,7 +7126,9 @@ function benchLoads(k,s){
   for(const n in LMOD)if(L[n]!=null||LMOD[n]>1)L[n]=Math.min(1,(L[n]??.12)*LMOD[n]);
   LOADT.fill(0);for(const n in L)LOADT[SB.MI[n]]=L[n];
 }
-const LEG_ROWS=['pec','deltA','triceps'];
+let LEG_ROWS=['pec','deltA','triceps'];
+function setMusRows(){LEG_ROWS=EXN.mus?Object.entries(EXN.mus).sort((a,b)=>b[1]-a[1]).slice(0,3).map(e=>e[0]):['pec','deltA','triceps'];const el=document.getElementById('musLeg');if(!el)return;
+  el.querySelectorAll('.mr').forEach(x=>x.remove());el.insertAdjacentHTML('beforeend',LEG_ROWS.map(n=>`<div class="mr" id="ml_${n}"><span>${(SB.MUS_FA&&SB.MUS_FA[n])||n}</span><i></i><b>—</b></div>`).join(''));}
 window.__bp={cur:()=>cur,applyProfile,setS:null,freeze:null,mus:v=>{hl=!!v;document.getElementById('hl').classList.toggle('on',hl);document.getElementById('musLeg').classList.toggle('on',hl);}};let camOverride=null;window.__bp.cam=(p,l)=>{camOverride=p?{p:V(...p),l:V(...l)}:null;};
 let forceS=null;window.__bp.setS=v=>{forceS=v;};
 window.__bp.setEx=(k,kg)=>{if(!EXD[k])return false;EXK=k;EXN=EXD[k];LOADQ=kg>0?kg:null;applyProfile(cur.pk);return {k,load:LOADI};};window.__bp.ex=()=>({k:EXK,load:LOADI,G});
@@ -7156,7 +7166,7 @@ function frame(now){
   if(hl&&now-(window.__legT||0)>120){window.__legT=now;LEG_ROWS.forEach(n=>{const v=Math.round(LD[SB.MI[n]]*100);const el=document.getElementById('ml_'+n);if(el){el.querySelector('i').style.width=v+'%';el.querySelector('b').textContent=fa(v)+'٪';}});}
   if(f.cyc!==lastCycle){if(lastCycle>=0)rep=rep%(REPQ||prof.repN)+1;lastCycle=f.cyc;document.getElementById('rep').textContent=fa(rep);}
   document.querySelector('#phase b').textContent=f.ph;
-  const o=standOn?poseStand():pose(f.s);const J=poseRig(cur,o);if(!standOn){if(isMV()){const m=curMV();if(m.update)m.update(o,J,f.s);}else if(EXN.eq==='db')placeDB(J,o);else bar.position.copy(o.bar);}
+  MVC=f.cyc||0;const o=standOn?poseStand():pose(f.s);const J=poseRig(cur,o);if(!standOn){if(isMV()){const m=curMV();if(m.update)m.update(o,J,f.s);}else if(EXN.eq==='db')placeDB(J,o);else bar.position.copy(o.bar);}
   if(cur.hair){cur.obj.updateMatrixWorld(true);cur.hair.step(now,standOn?{bench:{x0:9,x1:9.1,zw:.01,top:-9}}:HENV);cur.hair.meshes.forEach(m=>m.visible=musV<.5);}
   const ua=J.L.el.clone().sub(J.L.sh),fo=J.L.wr.clone().sub(J.L.el);
   const elbow=180-ua.angleTo(fo)/D, abd=ua.angleTo(o.up.clone().negate())/D;
@@ -7208,28 +7218,33 @@ const SJ=(sg)=>G.S.clone().addScaledVector(G.lat,sg*cur.dims.shW);
 
 /* ---------- loads ---------- */
 const STK=5,STN=20;
-function stackSplit(kg){kg=Math.max(STK,kg||0);let pin=Math.min(STN,Math.floor(kg/STK+1e-6));const rest=kg-pin*STK,add=rest>=2.5-1e-6?2.5:0;const total=pin*STK+add;return {pin,add,total,rem:Math.max(0,+(kg-total).toFixed(2))};}
+function stackSplit(kg,st=STK,n=STN){kg=Math.max(st,kg||0);let pin=Math.min(n,Math.floor(kg/st+1e-6));const rest=kg-pin*st,add=rest>=st/2-1e-6?st/2:0;const total=pin*st+add;return {pin,add,total,st,n,rem:Math.max(0,+(kg-total).toFixed(2))};}
 function plateGreedy(kg){let r=kg+1e-6;const out=[];for(const q of PLATES)while(r>=q){out.push(q);r-=q;}return {plates:out,total:out.reduce((a,b)=>a+b,0),rem:Math.max(0,+(r-1e-6).toFixed(2))};}
-function mvLoad(){const X=EXN,kg=curLoad();if(X.eq==='bw'){const g=plateGreedy(kg>0?kg:0);return {bw:true,add:g.total,plates:g.plates,rem:g.rem,want:kg};}
-  return {stack:stackSplit(kg),sides:X.sides||1,want:kg};}
+function mvLoad(){const X=EXN,kg=curLoad();if(X.eq==='bw'){if(X.bwDB)return {bw:true,bwDB:true,db:kg>0?kg:0,add:kg>0?kg:0,plates:[],rem:0,want:kg};const g=plateGreedy(kg>0?kg:0);return {bw:true,add:g.total,plates:g.plates,rem:g.rem,want:kg};}
+  if(X.load==='pl'){const g=plateGreedy(kg>0?kg:0);return {pl:g.plates,plates:g.plates,total:g.total,rem:g.rem,want:kg};}
+  if(X.load==='ball')return {ball:kg,want:kg};
+  return {stack:stackSplit(kg,X.st||STK,X.stn||STN),sides:X.sides||1,want:kg};}
 function mvLoadText(L){const X=EXN;
+  if(L.ball!=null)return `<b>${faN(L.ball)}</b> کیلو <span>مدیسین‌بال</span>`;
+  if(L.pl)return `<b>${faN(L.total)}</b> کیلو <span>${L.pl.length?'صفحه روی میلهٔ لندماین · '+L.pl.map(faN).join(' + '):'میلهٔ خالی'}</span>${L.rem>0?`<em>${faN(L.rem)} کیلو با این وزنه‌ها بسته نمی‌شود</em>`:''}`;
+  if(L.bwDB)return L.add?`<b>وزن بدن + ${faN(L.add)}</b> کیلو <span>هر دست یک دمبل ${faN(L.add)} کیلویی</span>`:`<b>وزن بدن</b> <span>بدون وزنه</span>`;
   if(L.bw){if(!L.add)return `<b>وزن بدن</b> <span>${X.mv==='dip'?'بدون وزنهٔ اضافه':'بدون وزنه'}</span>`;
-    return `<b>وزن بدن + ${faN(L.add)}</b> کیلو <span>${X.mv==='dip'?'کمربند دیپ':'روی پشت'} · ${L.plates.map(faN).join(' + ')}</span>${L.rem>0?`<em>${faN(L.rem)} کیلو با این وزنه‌ها بسته نمی‌شود</em>`:''}`;}
-  const s=L.stack;return `<b>${faN(s.total)}</b> کیلو <span>${L.sides===2?'× ۲ سیم‌کش · ':X.eq==='cable'?'یک سیم‌کش · ':''}پین روی ${faN(s.pin*STK)}${s.add?' + وزنهٔ کمکی ۲٫۵':''}</span>${s.rem>0?`<em>${faN(s.rem)} کیلو با این وزنه‌خانه بسته نمی‌شود</em>`:''}`;}
+    return `<b>وزن بدن + ${faN(L.add)}</b> کیلو <span>${X.mv==='dip'||X.mv==='pullup'?'کمربند وزنه':X.where||'روی بدن'} · ${L.plates.map(faN).join(' + ')}</span>${L.rem>0?`<em>${faN(L.rem)} کیلو با این وزنه‌ها بسته نمی‌شود</em>`:''}`;}
+  const s=L.stack;return `<b>${faN(s.total)}</b> کیلو <span>${L.sides===2?'× ۲ سیم‌کش · ':X.eq==='cable'?'یک سیم‌کش · ':''}پین روی ${faN(s.pin*s.st)}${s.add?' + وزنهٔ کمکی '+faN(s.add):''}</span>${s.rem>0?`<em>${faN(s.rem)} کیلو با این وزنه‌خانه بسته نمی‌شود</em>`:''}`;}
 
 /* ---------- selectorized weight stack (front = local +z): plates print their cumulative kg; pin on the programmed plate ---------- */
 const STL={};function stackLbl(n,hi){const k=n+(hi?'h':'');if(STL[k])return STL[k];
   const t=canvasTex(128,64,(g,w,h)=>{g.fillStyle=hi?'#3a2c10':'#121514';g.fillRect(0,0,w,h);g.fillStyle=hi?'#ffe2a0':'#cdb07a';g.font='700 40px Georgia';g.textAlign='center';g.textBaseline='middle';g.fillText(String(n).replace('.5','٫5'),w/2,h/2+2);});
   return STL[k]=new THREE.MeshStandardMaterial({map:t,roughness:.45,metalness:.1,emissive:0xffffff,emissiveMap:t,emissiveIntensity:hi?.5:.22});}
 function buildStack(par,o,ry,sp){const g=new THREE.Group();g.position.copy(o);g.rotation.y=ry;par.add(g);
-  const pw=.25,ph=.04,pd=.11,gap=.005,base=.14,P=ph+gap,top=base+STN*P,H=top+.5;
+  const SN=sp.n||STN,SS=sp.st||STK,pw=.25,ph=.04,pd=.11,gap=.005,base=.14,P=ph+gap,top=base+SN*P,H=top+.5;
   for(const sx of [-1,1]){cyl(V(sx*.075,base-.06,0),V(sx*.075,H-.06,0),.0085,M.chrome,g,12);rbox(.05,H,.07,.012,M.white,sx*(pw/2+.06),H/2,-.01,g);}
   rbox(pw+.2,.05,pd+.08,.012,M.black,0,.025,0,g);rbox(pw+.2,.05,pd+.06,.012,M.white,0,H,-.01,g);
   rbox(.012,H*.8,.012,.004,M.gold,-(pw/2+.06),H*.5,.03,g);rbox(.012,H*.8,.012,.004,M.gold,(pw/2+.06),H*.5,.03,g);
   const mov=new THREE.Group();g.add(mov);
-  for(let i=0;i<STN;i++){const y=top-(i+.5)*P,sel=i<sp.pin,par2=sel?mov:g;
+  for(let i=0;i<SN;i++){const y=top-(i+.5)*P,sel=i<sp.pin,par2=sel?mov:g;
     rbox(pw,ph,pd,.008,M.black,0,y,0,par2);
-    const lb=new THREE.Mesh(new THREE.PlaneGeometry(.062,.031),stackLbl((i+1)*STK,i===sp.pin-1));lb.position.set(-.07,y,pd/2+.0015);par2.add(lb);}
+    const lb=new THREE.Mesh(new THREE.PlaneGeometry(.062,.031),stackLbl((i+1)*SS,i===sp.pin-1));lb.position.set(-.07,y,pd/2+.0015);par2.add(lb);}
   cyl(V(0,top-sp.pin*P+.01,0),V(0,top+.2,0),.0075,M.steel,mov,10);
   rbox(pw*.72,.028,pd*.9,.008,M.alu,0,top+.016,0,mov);
   if(sp.add){rbox(.13,.022,.085,.006,M.gold,0,top+.045,0,mov);const lb=new THREE.Mesh(new THREE.PlaneGeometry(.05,.022),stackLbl(2.5,true));lb.position.set(0,top+.045,.0435);mov.add(lb);}
@@ -7407,6 +7422,646 @@ MV.dip={setup(){const d=cur.dims;G.dp={HB:Math.round(prof.h*.69)/100,bz:d.shW+.0
     const rMax=Math.max(...G.bwp.map(p=>p.r)),hole=front.clone().add(V(-.05,-.3,0)),c=hole.clone().add(V(0,-rMax+.03,0));
     setTube(G.chain,front,hole);setTube(G.belt,P.clone().addScaledVector(G.lat,.16).addScaledVector(G.n,.05),P.clone().addScaledVector(G.lat,-.16).addScaledVector(G.n,.05));
     let x=0;for(const p of G.bwp){p.m.position.copy(c).add(V(x,0,0));p.m.quaternion.setFromUnitVectors(UNIT_Y,V(1,0,0));x+=p.w+.003;}}};
+
+
+/* ======================= v1.9 — full library part 1: shared toolkit · legs · shoulders =======================
+   Conventions (same as v1.8): the athlete faces −x when standing/seated (body left = +z), s = 0 is the end of the
+   concentric phase (standing / contracted / arms extended), s = 1 the stretched end. Every module solves its own
+   pelvis + torso frame and hand/foot targets; poseRig does the two-bone IK. Loads are always shown exactly. */
+let MVC=0;
+const WY=V(0,1,0),ZZ=V(0,0,1),XX=V(1,0,0),FX=V(-1,0,0);
+const vsum=(...a)=>{const r=V(0,0,0);for(let i=0;i<a.length;i+=2)r.addScaledVector(a[i],a[i+1]);return r;};
+const nz=v=>v.clone().normalize();
+const FW=p=>V(-Math.cos(p),0,Math.sin(p)),LAT=F=>V(F.z,0,-F.x);
+function standUN(lean,psi=0){const F=FW(psi);return {u:vsum(WY,Math.cos(lean),F,Math.sin(lean)),n:vsum(F,Math.cos(lean),WY,-Math.sin(lean)),F};}
+const legL=()=>cur.dims.thigh+cur.dims.shin;
+const HIPY=()=>cur.dims.ankleH+legL()*.985;
+const armL=()=>cur.dims.uarm+cur.dims.farm;
+function mod(o){if(!o.equip)o.equip=function(){};if(!o.setup)o.setup=function(){};if(!o.track)o.track=function(s){return this.pose(s).bar.clone();};return o;}
+function O(x){return Object.assign({P:G.P.clone(),up:G.u.clone(),fwd:G.n.clone(),kneePole:G.n.clone().setY(0).normalize(),kneeOut:.12,hands:{},palm:{},elbowPoles:{},wristExt:0,bar:G.P.clone()},x||{});}
+function stance(c,F,w,out=.25,dx=0){const L=LAT(F),d=cur.dims;
+  return {feet:{L:c.clone().addScaledVector(L,w).addScaledVector(F,dx).setY(d.ankleH),R:c.clone().addScaledVector(L,-w).addScaledVector(F,-dx).setY(d.ankleH)},toeDir:{L:rotV(F,WY,out),R:rotV(F,WY,-out)}};}
+function fk(sg,du,f,palm){const d=cur.dims,E=SJ(sg).addScaledVector(du,d.uarm),W=E.clone().addScaledVector(f,d.farm);return {E,W,f,palm,C:W.clone().addScaledVector(f,G.wd).addScaledVector(palm,G.px)};}
+function setArm(o,sd,k){const sg=sd==='L'?1:-1;o.hands[sd]=k.W;o.palm[sd]=k.palm;(o.dbf=o.dbf||{})[sd]=k.f;o.elbowPoles[sd]=k.E.clone().sub(SJ(sg));}
+function hangK(sg,out=0,fw=0,palm){const d=cur.dims,du=nz(vsum(WY,-1,G.lat,sg*out,G.n,fw));return fk(sg,du,du,palm||G.lat.clone().multiplyScalar(-sg));}
+function hipsHands(o){const d=cur.dims;for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=G.P.clone().addScaledVector(G.lat,sg*(d.hipW+.1)).addScaledVector(G.u,.1).addScaledVector(G.n,.02);o.elbowPoles[sd]=vsum(G.lat,sg,G.n,-.4);delete o.palm[sd];}}
+function gC(J,o,sd){const j=J[sd],f=j.wr.clone().sub(j.el).normalize(),pm=o.palm&&(o.palm.isVector3?o.palm:o.palm[sd]);const pv=perp(pm||WY,f);return j.wr.clone().addScaledVector(f,G.wd*.92).addScaledVector(pv,G.px*.9);}
+function putBar(J,o){const a=gC(J,o,'L'),b=gC(J,o,'R');bar.position.copy(a).add(b).multiplyScalar(.5);bar.quaternion.setFromUnitVectors(ZZ,a.clone().sub(b).normalize());return bar.position.clone();}
+function lever(m,a,b){setTube(m,a,b);return m;}
+const STEEL=()=>M.steel||M.chrome;
+function plateMesh(kg){const q=PLG[kg],fm=plateFaceMat(kg);const m=new THREE.Mesh(new THREE.CylinderGeometry(q[0],q[0],q[1],40),[plateM,fm,fm]);m.castShadow=true;m.userData.w=q[1];m.userData.r=q[0];return m;}
+function placePlates(list,base,axis){let z=0;for(const p of list){p.position.copy(base).addScaledVector(axis,z+p.userData.w/2);p.quaternion.setFromUnitVectors(UNIT_Y,axis);z+=p.userData.w+.003;}}
+function orientBox(m,dir){m.rotation.set(0,0,-Math.atan2(dir.x,dir.y));}
+/* furniture */
+function flatBench(g,cx,cz,len,top,alongZ){const w=.3;
+  if(alongZ){rbox(w,.07,len,.03,M.leather,cx,top-.035,cz,g);for(const dz of [-len/2+.12,len/2-.12]){rbox(.06,top-.07,.06,.012,M.alu,cx,(top-.07)/2,cz+dz,g);rbox(.42,.04,.07,.012,M.black,cx,.02,cz+dz,g);}rbox(.06,.06,len-.3,.012,M.alu,cx,.12,cz,g);}
+  else{rbox(len,.07,w,.03,M.leather,cx,top-.035,cz,g);for(const dx of [-len/2+.12,len/2-.12]){rbox(.06,top-.07,.06,.012,M.alu,cx+dx,(top-.07)/2,cz,g);rbox(.07,.04,.42,.012,M.black,cx+dx,.02,cz,g);}rbox(len-.3,.06,.06,.012,M.alu,cx,.12,cz,g);}
+  rbox(alongZ?.012:len*.9,.008,alongZ?len*.9:.012,.003,M.gold,cx+(alongZ?w/2:0),top-.03,cz+(alongZ?0:w/2),g);}
+function seatAt(g,P,u,n,backLen,seatLen){const sc=prof.scale;const sy=P.y-.1*sc;rbox(seatLen||.42,.07,.4,.03,M.leather,P.x-.06,sy-.035,P.z||0,g);
+  cyl(V(P.x-.02,.06,P.z||0),V(P.x-.02,sy-.07,P.z||0),.034,M.alu,g,20);rbox(.6,.05,.5,.015,M.black,P.x,.025,P.z||0,g);
+  if(backLen){const bc=P.clone().addScaledVector(n,-(prof.back+.04)).addScaledVector(u,backLen/2-.06);const bp=rbox(.08,backLen,.4,.035,M.leather,bc.x,bc.y,P.z||0,g);orientBox(bp,u);
+    const bb=bc.clone().addScaledVector(n,-.07);const bs=rbox(.05,backLen*.8,.08,.015,M.alu,bb.x,bb.y,P.z||0,g);orientBox(bs,u);cyl(bb.clone().addScaledVector(u,-backLen*.35),V(P.x-.02,sy-.12,P.z||0),.022,M.alu,g);}
+  return sy;}
+function mat(g,cx,cz,lx,lz){mesh(new THREE.BoxGeometry(lx,.01,lz),M.rubber,cx,.005,cz,g);rbox(lx,.006,.012,.003,M.gold,cx,.011,cz+lz/2,g);}
+function powerRack(g,x0,x1,zw,hookY,safeY){const cx=(x0+x1)/2,L=Math.abs(x1-x0);
+  for(const x of [x0,x1])for(const z of [-zw,zw])rbox(.075,2.3,.075,.015,M.white,x,1.15,z,g);
+  for(const z of [-zw,zw]){rbox(L+.08,.06,.06,.015,M.white,cx,2.3,z,g);rbox(L+.24,.05,.09,.015,M.black,cx,.025,z,g);
+    rbox(L+.12,.04,.05,.012,M.alu,cx,safeY,z*.93,g);rbox(.1,.034,.08,.01,M.gold,x0+.045,hookY,z,g);}
+  for(const x of [x0,x1])rbox(.06,.06,2*zw,.015,M.white,x,2.3,0,g);rbox(.014,1.5,.016,.005,M.gold,x0-.04,1.05,zw,g);
+  try{badge(g,'PUTTCLUB','POWER RACK',.36,.1,x0-.045,2.05,0,-Math.PI/2);}catch(e){}}
+function tower1(g,x,py,z=0){ // functional-trainer column facing +x (athlete stands on its +x side)
+  for(const dz of [-.25,.25])rbox(.09,2.3,.08,.02,M.white,x,1.15,z+dz,g);
+  rbox(.55,.05,.65,.015,M.black,x+.05,.025,z,g);rbox(.14,.1,.6,.02,M.white,x,2.3,z,g);rbox(.016,1.6,.012,.004,M.gold,x+.047,1.1,z+.25,g);
+  const st=buildStack(g,V(x-.04,0,z),Math.PI/2,LOADI.stack);
+  cyl(V(x+.11,.1,z),V(x+.11,2.22,z),.016,M.chrome,g,16);rbox(.08,.13,.1,.02,M.black,x+.11,py,z,g);
+  const wh=new THREE.Mesh(new THREE.TorusGeometry(.04,.014,10,24),M.gold);wh.position.set(x+.16,py,z);wh.castShadow=true;g.add(wh);
+  try{badge(g,'PUTTCLUB','FUNCTIONAL TRAINER',.34,.09,x+.047,2.05,z,Math.PI/2);}catch(e){}
+  return {pul:V(x+.18,py,z),st};}
+function ropeSet(g){return {c:tubeM(g,.0035,cableM,8),a:tubeM(g,.011,M.black,10),b:tubeM(g,.011,M.black,10),ka:mesh(new THREE.SphereGeometry(.02,10,8),M.black,0,0,0,g),kb:mesh(new THREE.SphereGeometry(.02,10,8),M.black,0,0,0,g)};}
+function drawRope(R,pul,A,ga,gb){setTube(R.c,pul,A);setTube(R.a,A,ga);setTube(R.b,A,gb);R.ka.position.copy(ga);R.kb.position.copy(gb);}
+function handleSet(g){return {c:tubeM(g,.0035,cableM,8),grip:tubeM(g,.016,M.rubber,16),a:tubeM(g,.006,STEEL(),8),b:tubeM(g,.006,STEEL(),8)};}
+function drawHandle(H,pul,C,ax,away){const A=C.clone().addScaledVector(away,.075),e1=C.clone().addScaledVector(ax,-.065),e2=C.clone().addScaledVector(ax,.065);setTube(H.grip,e1,e2);setTube(H.a,e1,A);setTube(H.b,e2,A);setTube(H.c,pul,A);return pul.distanceTo(A);}
+function cableBar(g,len){const o={c:tubeM(g,.0035,cableM,8),bar:tubeM(g,.014,M.chrome,16),gl:tubeM(g,.017,M.rubber,16),gr:tubeM(g,.017,M.rubber,16),len};return o;}
+function drawCBar(B,pul,a,b,bend){const m=a.clone().add(b).multiplyScalar(.5),ax=nz(a.clone().sub(b)),h=B.len/2;
+  const ea=m.clone().addScaledVector(ax,h),eb=m.clone().addScaledVector(ax,-h);setTube(B.bar,ea,eb);setTube(B.gl,a.clone().addScaledVector(ax,-.06),a.clone().addScaledVector(ax,.06));setTube(B.gr,b.clone().addScaledVector(ax,-.06),b.clone().addScaledVector(ax,.06));setTube(B.c,pul,m);return pul.distanceTo(m);}
+const mkStack=(g,p,ry)=>buildStack(g,p,ry,LOADI.stack);
+
+/* ---------------- LEGS ---------------- */
+/* knee-dominant squat family: shin tilt τ and hip height define the pelvis; the torso lean is solved so the load stays over mid-foot */
+function legsTo(A,y,tau){const d=cur.dims,K=A.clone().addScaledVector(FX,d.shin*Math.sin(tau)).add(V(0,d.shin*Math.cos(tau),0));
+  const dy=Math.min(d.thigh*.999,Math.max(0,y-K.y)),back=Math.sqrt(d.thigh*d.thigh-dy*dy);return K.clone().addScaledVector(FX,-back).setY(K.y+dy);}
+function solveLean(P,a,b,xT){let lo=-.1,hi=1.3;for(let i=0;i<32;i++){const m=(lo+hi)/2,{u,n}=standUN(m),x=vsum(P,1,u,a,n,-b).dot(FX);if(x<xT)lo=m;else hi=m;}return (lo+hi)/2;}
+function squatMod(goblet){return mod({trOff:goblet?0:.62,
+  setup(){const d=cur.dims;this.A=V(0,d.ankleH,0);this.st=stance(this.A,FX,d.hipW+(goblet?.15:.09),(goblet?30:24)*D);},
+  at(s){const d=cur.dims,sc=prof.scale,tau=lerp(3,goblet?38:33,s)*D;
+    const Kb=this.A.y+d.shin*Math.cos(goblet?38*D:33*D),y=lerp(HIPY(),Kb-.035,s),P=legsTo(this.A,y,tau);
+    let lam;if(goblet)lam=lerp(3,24,s)*D;else lam=solveLean(P,d.spine+.015,prof.back+.03,this.A.dot(FX)+.05);
+    const {u,n}=standUN(lam);setTorso(P,u,n);return {P,u,n};},
+  pose(s){const d=cur.dims,a=this.at(s),o=O(Object.assign({kneePole:FX.clone(),kneeOut:goblet?.45:.35},this.st));
+    if(!goblet){const C=vsum(a.P,1,a.u,d.spine+.015,a.n,-(prof.back+.03)),g=d.shW+.2;
+      for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=vsum(C,1,G.lat,sg*g,a.u,-.055,a.n,-.02);o.palm[sd]=a.n.clone();o.elbowPoles[sd]=vsum(a.u,-.75,a.n,-.65,G.lat,sg*.25);}o.bar=C;}
+    else{const half=dbDims(curLoad()).half,Dc=vsum(G.S,1,a.n,prof.chestF+.11,a.u,-.2);
+      for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=vsum(Dc,1,a.u,half*.55-.05,G.lat,sg*.055,a.n,-.02);o.palm[sd]=vsum(a.u,1,G.lat,-sg*.6);o.elbowPoles[sd]=vsum(a.u,-1,G.lat,sg*.15,a.n,.2);}
+      o.bar=Dc;o.gob={Dc,u:a.u};}
+    return o;},
+  equip(){const g=eqG;if(!goblet){const top=this.at(0),C=vsum(top.P,1,top.u,cur.dims.spine,top.n,-prof.back);powerRack(g,-.5,.5,.6,C.y-.06,this.at(1).P.y-.02);}else{dbG[1].visible=false;}},
+  update(o,J){if(!goblet){putBar(J,o);return;}const g=dbG[0];g.position.copy(o.gob.Dc);g.quaternion.setFromUnitVectors(V(1,0,0),o.gob.u);}});}
+MV.squat=squatMod(false);MV.goblet=squatMod(true);
+
+/* hip hinge: fixed shin tilt; thigh angle solved so the shoulders stay over the bar (RDL, rows, rear-delt fly) */
+function hingeP(lam,tau,xT){const d=cur.dims,A=V(0,d.ankleH,0),K=A.clone().addScaledVector(FX,d.shin*Math.sin(tau)).add(V(0,d.shin*Math.cos(tau),0));const {u,n}=standUN(lam);
+  const Pof=m=>K.clone().addScaledVector(FX,-d.thigh*Math.sin(m)).add(V(0,d.thigh*Math.cos(m),0));
+  let lo=0,hi=1.5;for(let i=0;i<32;i++){const m=(lo+hi)/2,Sf=vsum(Pof(m),1,u,d.spine,n,d.shZ).dot(FX);if(Sf>xT)lo=m;else hi=m;}
+  const P=Pof((lo+hi)/2);setTorso(P,u,n);return {P,u,n,A};}
+const GRIPHANG=sg=>cur.dims.hipW+.13;
+MV.rdl=mod({trOff:.62,
+  setup(){const d=cur.dims;this.st=stance(V(0,d.ankleH,0),FX,d.hipW+.03,8*D);},
+  pose(s){const d=cur.dims,h=hingeP(lerp(4,74,s)*D,lerp(4,13,s)*D,.045),o=O(Object.assign({kneePole:FX.clone(),kneeOut:.12},this.st));
+    const gz=d.hipW+.13,dz=Math.abs(gz-d.shW),drop=Math.sqrt(Math.max(.01,Math.pow(armL()*.985,2)-dz*dz));
+    for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=V(G.S.x,G.S.y-drop,sg*gz);o.palm[sd]=XX.clone();o.elbowPoles[sd]=vsum(XX,1,WY,-.2,ZZ,sg*.5);}
+    o.bar=V(G.S.x-.02,G.S.y-drop-.03,0);return o;},
+  update(o,J){putBar(J,o);}});
+
+/* lunges / split squats: pelvis moves vertically between a straight-ish front leg and a deep split */
+function splitMod(cfg){return mod({trOff:0,
+  setup(){const d=cur.dims,th=d.thigh,sh=d.shin;const Af=V(-th*.98,d.ankleH,d.hipW+.02);const Pb=V(0,Af.y+sh*.985,0);
+    let Ar;if(cfg.bench){Ar=V(th*.15+sh*.78,.45+.075,-(d.hipW-.01));}else{const ky=.11,kx=.07;Ar=V(kx+Math.sqrt(Math.max(.01,sh*sh-Math.pow(Math.max(.02,Pb.y-Math.sqrt(Math.max(.01,th*th-kx*kx))-.14),2))),.15,-(d.hipW+.01));}
+    const yt=Af.y+Math.sqrt(Math.max(.05,Math.pow(legL()*.965,2)-Af.x*Af.x));const ytr=Ar.y+Math.sqrt(Math.max(.05,Math.pow(legL()*.985,2)-Math.pow(Ar.x,2)));
+    this.g={Af,Ar,yt:Math.min(yt,ytr),yb:Pb.y};},
+  pose(s){const d=cur.dims,g=this.g,lam=(cfg.bench?lerp(6,16,s):lerp(2,7,s))*D,{u,n}=standUN(lam),P=V(0,lerp(g.yt,g.yb,s),0);setTorso(P,u,n);
+    const o=O({feet:{L:g.Af.clone(),R:g.Ar.clone()},toeDir:{L:rotV(FX,WY,.12),R:cfg.bench?nz(V(1,-.3,0)):nz(V(-.75,-.66,0))},toeFree:true,kneePole:FX.clone(),kneeOut:.1});
+    const db=LOADI&&LOADI.db>0;
+    if(db||!cfg.bench){for(const [sd,sg] of [['L',1],['R',-1]])setArm(o,sd,hangK(sg,.13,.02));}else hipsHands(o);
+    o.bar=P.clone();return o;},
+  equip(){if(cfg.bench){flatBench(eqG,this.g.Ar.x+.12,0,1.2,.45,true);if(LOADI.db>0){buildDB(LOADI.db);dbRoot.visible=true;}}},
+  update(o,J){if(LOADI.db>0||EXN.eq==='db')placeDB(J,o);}});}
+MV.lunge=splitMod({});MV.bss=splitMod({bench:true});
+
+/* hip thrust (upper back on a bench edge) and glute bridge (shoulders on the floor): torso pivots about the shoulder contact */
+function bridgeMod(cfg){return mod({trOff:cfg.bench?.62:0,
+  setup(){const d=cur.dims,sc=prof.scale;this.E=cfg.bench?V(.42,.43,0):V(.42,0,0);this.sol=th=>{const u=V(Math.cos(th),Math.sin(th),0),n=V(-Math.sin(th),Math.cos(th),0);
+      const P=cfg.bench?vsum(this.E,1,u,-d.spine*.8,n,prof.back+.01):vsum(V(this.E.x,prof.back+.005,0),1,u,-d.spine,n,-d.shZ);return {P,u,n};};
+    const t=this.sol(cfg.bench?2*D:-22*D),K=t.P.clone().add(V(-d.thigh*.97,-.03,0));this.A=V(K.x+.02,d.ankleH,0);},
+  pose(s){const d=cur.dims,th=cfg.bench?lerp(2,38,s)*D:lerp(-22,-1,s)*D,a=this.sol(th);setTorso(a.P,a.u,a.n);
+    const fz=d.hipW+.05,o=O({feet:{L:V(this.A.x,d.ankleH,fz),R:V(this.A.x,d.ankleH,-fz)},toeDir:{L:V(-1,0,.2),R:V(-1,0,-.2)},kneePole:WY.clone(),kneeOut:.15});
+    const C=vsum(a.P,1,a.n,.13*prof.scale+.035,a.u,-.03);
+    if(cfg.bench){const g=d.hipW+.21;for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=vsum(C,1,G.lat,sg*g,a.n,G.px+.012,a.u,G.wd*.7);o.palm[sd]=a.n.clone().negate();o.elbowPoles[sd]=vsum(a.n,.4,G.lat,sg,a.u,.3);}}
+    else{for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=V(a.P.x+.02,.045,sg*(d.hipW+.16));o.palm[sd]=WY.clone().negate();o.handO={L:{dir:V(-1,0,.1),palm:V(0,-1,0)},R:{dir:V(-1,0,-.1),palm:V(0,-1,0)}};o.elbowPoles[sd]=vsum(ZZ,sg,WY,.3);}o.noCurl=true;}
+    o.bar=C;o.brC=C;o.brN=a.n;return o;},
+  equip(){const g=eqG;if(cfg.bench){flatBench(g,this.E.x+.14,0,1.2,.43,true);const pad=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.42,20),M.black);pad.rotation.x=Math.PI/2;bar.add(pad);}
+    else{mat(g,-.1,0,1.9,.62);G.bwp=(LOADI.plates||[]).map(kg=>{const p=plateMesh(kg);g.add(p);return p;});}},
+  update(o,J){if(cfg.bench){putBar(J,o);return;}placePlates(G.bwp,o.brC.clone().addScaledVector(o.brN,-.03),o.brN);}});}
+MV.thrust=bridgeMod({bench:true});MV.bridge=bridgeMod({});
+
+/* selectorized leg machines */
+function seatedFrame(P,rec){const t=rec*D,u=V(Math.sin(t),Math.cos(t),0),n=V(-Math.cos(t),Math.sin(t),0);setTorso(P,u,n);return {u,n};}
+function sideHandles(o,fwd=.06,dy=-.04){const d=cur.dims;for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=vsum(G.P,1,G.lat,sg*(d.hipW+.17),WY,dy,FX,fwd);o.palm[sd]=G.lat.clone().multiplyScalar(-sg);o.elbowPoles[sd]=vsum(XX,.6,WY,-.4,G.lat,sg*.5);}}
+MV.legpress=mod({trOff:0,
+  setup(){const d=cur.dims;this.P=V(.38,.6,0);this.dir=nz(V(-1,.3,0));this.d0=legL()*.94;this.d1=Math.sqrt(d.thigh*d.thigh+d.shin*d.shin-2*d.thigh*d.shin*Math.cos(82*D));seatedFrame(this.P,38);},
+  A(s,sg){const d=cur.dims;return vsum(this.P,1,this.dir,lerp(this.d0,this.d1,s),ZZ,sg*(d.hipW+.06));},
+  pose(s){seatedFrame(this.P,38);const t=perp(WY,this.dir),td=nz(vsum(t,1,this.dir,.42));
+    const o=O({feet:{L:this.A(s,1),R:this.A(s,-1)},toeDir:{L:td,R:td},toeFree:true,kneePole:nz(V(-.2,1,0)),kneeOut:.3});sideHandles(o);o.bar=this.A(s,1);o.lp=s;return o;},
+  equip(){const g=eqG,P=this.P,{u,n}=seatedFrame(P,38);seatAt(g,P,u,n,.75,.46);rbox(1.9,.06,.14,.02,M.black,P.x-.55,.03,0,g);
+    const a=this.A(1,1).setZ(0),b=this.A(0,1).setZ(0);for(const z of [-.2,.2])cyl(a.clone().addScaledVector(this.dir,-.2).setZ(z).add(V(0,-.12,0)),b.clone().addScaledVector(this.dir,.25).setZ(z).add(V(0,-.12,0)),.022,M.chrome,g,14);
+    cyl(V(a.x-.1,.05,0),a.clone().add(V(-.1,-.12,0)),.035,M.white,g);cyl(V(b.x-.2,.05,0),b.clone().add(V(-.25,-.12,0)),.035,M.white,g);
+    this.plate=new THREE.Group();g.add(this.plate);rbox(.04,.52,.56,.02,M.black,0,0,0,this.plate);rbox(.01,.5,.012,.004,M.gold,.021,0,.26,this.plate);rbox(.01,.012,.5,.004,M.gold,.021,.24,0,this.plate);
+    this.stk=mkStack(g,V(P.x+.95,0,0),-Math.PI/2);rbox(.12,1.7,.14,.03,M.white,P.x+.62,.85,0,g);try{badge(g,'PUTTCLUB','LEG PRESS',.32,.09,P.x+.557,1.35,0,-Math.PI/2);}catch(e){}},
+  update(o,J,s){const c=this.A(s,1).setZ(0).addScaledVector(this.dir,.085).add(V(0,.06,0));this.plate.position.copy(c);this.plate.rotation.set(0,0,Math.atan2(this.dir.y,this.dir.x)+Math.PI);this.stk.lift((this.d1-lerp(this.d0,this.d1,s))*.7);}});
+function kneeMachine(curl){return mod({trOff:0,
+  setup(){const d=cur.dims;this.P=V(.3,.6,0);seatedFrame(this.P,curl?14:8);this.K=this.P.clone().add(V(-d.thigh*.97,-.035,0));},
+  th(s){return (curl?lerp(100,4,s):lerp(5,92,s))*D;},
+  A(s,sg){const d=cur.dims,t=this.th(s);return vsum(this.K,1,V(-Math.cos(t),-Math.sin(t),0),d.shin*.97,ZZ,sg*d.hipW*.85);},
+  pose(s){seatedFrame(this.P,curl?14:8);const t=this.th(s),td=nz(V(-Math.sin(t)-.25*Math.cos(t),Math.cos(t)-.25*Math.sin(t),0));
+    const o=O({feet:{L:this.A(s,1),R:this.A(s,-1)},toeDir:{L:td,R:td},toeFree:true,kneePole:WY.clone(),kneeOut:.05});sideHandles(o,.1);o.bar=this.A(s,1);return o;},
+  equip(){const g=eqG,P=this.P,{u,n}=seatedFrame(P,curl?14:8),d=cur.dims;seatAt(g,P,u,n,.68,d.thigh*.9+.15);
+    rbox(.12,1.75,.14,.03,M.white,P.x+.62,.875,0,g);this.stk=mkStack(g,V(P.x+.95,0,0),-Math.PI/2);const pz=-(d.hipW+.24);
+    mesh(new THREE.CylinderGeometry(.06,.06,.08,24),M.gold,this.K.x,this.K.y,pz,g).rotation.x=Math.PI/2;cyl(V(this.K.x,this.K.y,pz),V(P.x+.6,this.K.y-.1,pz),.035,M.white,g);
+    if(curl){const tp=this.K.clone().add(V(.14,.12+prof.scale*.04,0));const m=new THREE.Mesh(new THREE.CylinderGeometry(.055,.055,.44,20),M.leather);m.rotation.x=Math.PI/2;m.position.copy(tp);g.add(m);cyl(tp.clone().setZ(pz),V(tp.x,tp.y,pz),.02,M.alu,g);}
+    this.lev=tubeM(g,.03,M.white);this.pad=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.44,20),M.leather);this.pad.rotation.x=Math.PI/2;this.pad.castShadow=true;g.add(this.pad);this.pz=pz;
+    try{badge(g,'PUTTCLUB',curl?'LEG CURL':'LEG EXTENSION',.32,.09,P.x+.557,1.4,0,-Math.PI/2);}catch(e){}},
+  update(o,J,s){const t=this.th(s),sd=V(-Math.cos(t),-Math.sin(t),0),fr=V(-Math.sin(t),Math.cos(t),0),A=this.A(s,1).setZ(0);
+    const c=A.clone().addScaledVector(sd,-.03).addScaledVector(fr,curl?-.075:.075);this.pad.position.copy(c);lever(this.lev,V(this.K.x,this.K.y,this.pz),c.clone().setZ(this.pz));this.stk.lift((1-s)*.24);}});}
+MV.legext=kneeMachine(false);MV.legcurl=kneeMachine(true);
+MV.calf=mod({trOff:0,
+  setup(){const d=cur.dims;this.T=V(-.07,.135,0);this.ft=d.foot*.92;},
+  ank(s,sg){const d=cur.dims,g=lerp(-36,22,s)*D,td=V(-Math.cos(g),Math.sin(g),0);return {A:this.T.clone().addScaledVector(td,-this.ft).setZ(sg*(d.hipW+.03)),td};},
+  pose(s){const a=this.ank(s,1),b=this.ank(s,-1),P=V(a.A.x+.01,a.A.y+legL()*.985,0);setTorso(P,WY.clone(),FX.clone());
+    const o=O({feet:{L:a.A,R:b.A},toeDir:{L:a.td,R:b.td},toeFree:true,kneePole:FX.clone(),kneeOut:.05});
+    for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=vsum(SJ(sg),1,WY,.13,FX,.16,ZZ,sg*.03);o.palm[sd]=ZZ.clone().multiplyScalar(-sg);o.elbowPoles[sd]=vsum(WY,-1,FX,.4,ZZ,sg*.4);}o.bar=G.S.clone();o.cy=P.y;return o;},
+  equip(){const g=eqG;rbox(.5,.135,.6,.02,M.rubber,.12,.0675,0,g);rbox(.5,.006,.012,.003,M.gold,.12,.136,.3,g);this.y1=this.pose(1).cy;
+    rbox(.12,2.1,.14,.03,M.white,.62,1.05,0,g);this.stk=mkStack(g,V(.95,0,0),-Math.PI/2);this.yoke=new THREE.Group();g.add(this.yoke);
+    for(const sg of [1,-1]){rbox(.16,.07,.15,.03,M.leather,0,0,sg*(cur.dims.shW+.02),this.yoke);cyl(V(-.12,0,sg*(cur.dims.shW+.02)),V(-.12,-.08,sg*(cur.dims.shW+.02)),.016,M.rubber,this.yoke);}
+    rbox(.06,.05,2*cur.dims.shW+.2,.015,M.alu,.08,.02,0,this.yoke);rbox(.5,.06,.06,.015,M.alu,.33,.02,0,this.yoke);try{badge(g,'PUTTCLUB','CALF RAISE',.3,.09,.557,1.5,0,-Math.PI/2);}catch(e){}},
+  update(o,J,s){this.yoke.position.copy(G.S).add(V(.0,.075,0));this.stk.lift(o.cy-this.y1);}});
+MV.kickback=mod({trOff:0,
+  setup(){this.Tx=-1.0;},
+  pose(s){const d=cur.dims,lam=36*D,{u,n}=standUN(lam),P=V(this.Tx+.98,d.ankleH+legL()*.965,0);setTorso(P,u,n);
+    const H=P.clone().addScaledVector(G.lat,-d.hipW),e=lerp(34,-14,s)*D,dir=V(Math.sin(e),-Math.cos(e),0),Ar=H.clone().addScaledVector(dir,legL()*.955);
+    const o=O({feet:{L:V(P.x-.03,d.ankleH,d.hipW+.03),R:Ar},toeDir:{L:V(-1,0,.15),R:nz(vsum(dir,.4,FX,.6))},kneePole:FX.clone(),kneeOut:.05,toeFree:{R:true}});
+    for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=V(this.Tx+.06,1.08,sg*.25);o.palm[sd]=ZZ.clone().multiplyScalar(-sg);o.elbowPoles[sd]=vsum(WY,-1,ZZ,sg*.3);}o.bar=Ar;o.ank=Ar;return o;},
+  equip(){const g=eqG;this.tw=tower1(g,this.Tx,.14);this.cab=tubeM(g,.0035,cableM,8);this.strap=new THREE.Mesh(new THREE.TorusGeometry(.055,.018,10,24),M.black);g.add(this.strap);this.L1=this.tw.pul.distanceTo(this.pose(1).ank);},
+  update(o){const A=o.ank;this.strap.position.copy(A);this.strap.rotation.set(Math.PI/2,0,0);setTube(this.cab,this.tw.pul,A.clone().add(V(-.03,-.02,0)));this.tw.st.lift(.02+Math.max(0,this.tw.pul.distanceTo(A)-this.L1));}});
+
+/* ---------------- SHOULDERS ---------------- */
+MV.ohp=mod({trOff:.62,
+  setup(){const d=cur.dims;this.st=stance(V(0,d.ankleH,0),FX,d.hipW+.04,10*D);},
+  pose(s){const d=cur.dims,sc=prof.scale,{u,n}=standUN(-2*D),P=V(.0,HIPY()*.998,0);setTorso(P,u,n);const g=d.shW+.08,dz=g-d.shW;
+    const Cb=vsum(G.S,1,n,.1*sc+.03,u,.0),Ct=V(G.S.x-.03,G.S.y+Math.sqrt(Math.max(.02,Math.pow(armL()*.985+G.wd*.6,2)-dz*dz)),0);
+    const C=Ct.clone().lerp(Cb,s).addScaledVector(n,.07*Math.sin(Math.PI*s));const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.1},this.st));
+    for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=vsum(C,1,G.lat,sg*g,u,-G.wd*.9,n,-G.px*.9);o.palm[sd]=n.clone();o.elbowPoles[sd]=nz(vsum(n,.8*s,u,-.5*s,G.lat,sg*(.35+.6*(1-s))));}o.bar=C;return o;},
+  equip(){this.pose(1);powerRack(eqG,-.45,.55,.6,G.S.y-.05,.8);},update(o,J){putBar(J,o);}});
+/* overhead press arm: upper arm swings from scapular-plane abduction to vertical; forearm vertical until the last third */
+function ohArm(sg,s,palm){const lat=G.lat.clone().multiplyScalar(sg),sp=25*D;const duB=nz(vsum(lat,Math.cos(sp)*Math.cos(12*D),G.n,Math.sin(sp)*Math.cos(12*D),G.u,-Math.sin(12*D)));
+  const duT=nz(vsum(G.u,1,lat,.2,G.n,.06)),du=slerpV2(duT,duB,s),f=slerpV2(nz(vsum(G.u,1,lat,.1)),G.u,Math.min(1,s*2.2));return fk(sg,du,f,palm||G.n.clone());}
+function seatedOH(cfg){return mod({trOff:0,
+  setup(){this.P=V(.3,.56,0);},
+  pose(s){const {u,n}=seatedFrame(this.P,cfg.rec||6),d=cur.dims,ax=this.P.x-d.thigh*.9;
+    const o=O({feet:{L:V(ax,d.ankleH,d.hipW+.14),R:V(ax,d.ankleH,-(d.hipW+.14))},toeDir:{L:V(-1,0,.35),R:V(-1,0,-.35)},kneePole:nz(V(-.6,1,0)),kneeOut:.3});
+    for(const [sd,sg] of [['L',1],['R',-1]]){const k=ohArm(sg,s,cfg.neutral?G.lat.clone().multiplyScalar(-sg):null);setArm(o,sd,k);o['k'+sd]=k;}o.bar=o.kL.C.clone();return o;},
+  equip(){const g=eqG,{u,n}=seatedFrame(this.P,cfg.rec||6);seatAt(g,this.P,u,n,.9,.44);
+    if(cfg.machine){rbox(.12,2.0,.14,.03,M.white,this.P.x+.62,1.0,0,g);this.stk=mkStack(g,V(this.P.x+.95,0,0),-Math.PI/2);this.h={};for(const sg of [1,-1])this.h[sg]={g:tubeM(g,.017,M.rubber,16),l:tubeM(g,.024,M.alu),a:tubeM(g,.028,M.alu)};
+      try{badge(g,'PUTTCLUB','SHOULDER PRESS',.34,.1,this.P.x+.557,1.65,0,-Math.PI/2);}catch(e){}}},
+  update(o,J,s){if(!cfg.machine){placeDB(J,o);return;}for(const [sd,sg] of [['L',1],['R',-1]]){const k=o['k'+sd],h=this.h[sg],ax=nz(new THREE.Vector3().crossVectors(k.f,k.palm));
+      setTube(h.g,k.C.clone().addScaledVector(ax,-.07),k.C.clone().addScaledVector(ax,.07));const back=k.C.clone().addScaledVector(ax,ax.dot(XX)>0?.07:-.07),j=back.clone().add(V(.04,0,sg*.12));setTube(h.l,back,j);setTube(h.a,j,V(this.P.x+.6,G.S.y-.12,sg*(cur.dims.shW+.3)));}
+    this.stk.lift((1-s)*.3);}});}
+MV.dbohp=seatedOH({rec:6});MV.mohp=seatedOH({rec:8,machine:true,neutral:true});
+MV.smithohp=mod({trOff:.75,
+  setup(){this.P=V(.32,.56,0);},
+  pose(s){const {u,n}=seatedFrame(this.P,4),d=cur.dims,ax=this.P.x-d.thigh*.9,g=d.shW+.09,dz=g-d.shW,rx=G.S.x-.11;
+    const Cb=V(rx,G.S.y+.1,0),hx=G.S.x-rx,Ct=V(rx,G.S.y+Math.sqrt(Math.max(.02,Math.pow(armL()*.985+G.wd*.6,2)-dz*dz-hx*hx)),0),C=Ct.clone().lerp(Cb,s);
+    const o=O({feet:{L:V(ax,d.ankleH,d.hipW+.14),R:V(ax,d.ankleH,-(d.hipW+.14))},toeDir:{L:V(-1,0,.35),R:V(-1,0,-.35)},kneePole:nz(V(-.6,1,0)),kneeOut:.3});
+    for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=vsum(C,1,G.lat,sg*g,u,-G.wd*.9,n,-G.px*.9);o.palm[sd]=n.clone();o.elbowPoles[sd]=nz(vsum(n,.7*s,u,-.4*s,G.lat,sg*(.4+.6*(1-s))));}o.bar=C;this.rx=rx;return o;},
+  equip(){const g=eqG,{u,n}=seatedFrame(this.P,4);seatAt(g,this.P,u,n,.9,.44);this.pose(0);buildSmith(this.rx,G.S.y+.03);},
+  update(o,J){const p=putBar(J,o);bar.position.x=this.rx;bar.quaternion.identity();}});
+/* lateral-type arcs: constant elbow bend; the back of the hand leads (palm opposite to the motion) */
+function arcSetupD(sg,openD,closedD,kap){const d=cur.dims,Sj=SJ(sg),Lc=Math.sqrt(d.uarm*d.uarm+d.farm*d.farm+2*d.uarm*d.farm*Math.cos(kap)),dl=Math.asin(d.farm*Math.sin(kap)/Lc);
+  const co=nz(openD),cc=nz(closedD),ax=nz(new THREE.Vector3().crossVectors(co,cc));return {Sj,Lc,dl,co,cc,ax,kap};}
+function arcK2(B,s,flip){const k=arcK(B,s);if(flip)k.palm.negate();k.C=k.W.clone().addScaledVector(k.f,G.wd).addScaledVector(k.palm,G.px);return k;}
+MV.lateral=mod({trOff:.3,
+  setup(){},
+  pose(s){const d=cur.dims,{u,n}=standUN(4*D),P=V(0,HIPY()*.995,0);setTorso(P,u,n);const st=stance(V(0,d.ankleH,0),FX,d.hipW+.03,10*D);
+    const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.08},st));
+    for(const [sd,sg] of [['L',1],['R',-1]]){const lat=G.lat.clone().multiplyScalar(sg),B=arcSetupD(sg,vsum(u,-1,n,.12,lat,.18),vsum(lat,.95,n,.32,u,.04),16*D);setArm(o,sd,arcK2(B,s,true));}
+    o.bar=o.hands.L.clone();return o;},
+  update(o,J){placeDB(J,o);}});
+MV.reardelt=mod({trOff:.3,
+  setup(){const d=cur.dims;this.st=stance(V(0,d.ankleH,0),FX,d.hipW+.04,8*D);},
+  pose(s){const h=hingeP(68*D,13*D,.06),o=O(Object.assign({kneePole:FX.clone(),kneeOut:.12},this.st));
+    for(const [sd,sg] of [['L',1],['R',-1]]){const lat=G.lat.clone().multiplyScalar(sg),B=arcSetupD(sg,vsum(WY,-1,lat,.08,XX,.05),vsum(lat,.96,WY,-.2,XX,.05),18*D);setArm(o,sd,arcK2(B,s,true));}
+    o.bar=o.hands.L.clone();return o;},
+  update(o,J){placeDB(J,o);}});
+/* cable crossover station reuse: single-arm lateral raise from the low pulley of the left tower */
+MV.clateral=mod({trOff:0,
+  setup(){},
+  pose(s){const d=cur.dims,{u,n}=standUN(5*D),P=V(-.1,HIPY()*.99,.55);setTorso(P,u,n);const st=stance(V(-.1,d.ankleH,.55),FX,d.hipW+.05,10*D);
+    const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.08},st));const lat=G.lat.clone();
+    const B=arcSetupD(-1,vsum(u,-1,lat,.38,n,.22),vsum(lat,-.95,n,.25,u,.08),12*D),k=arcK2(B,s,true);setArm(o,'R',k);o.kR=k;
+    o.hands.L=vsum(P,1,lat,d.hipW+.1,u,.1,n,.02);o.elbowPoles.L=vsum(lat,1,n,-.4);delete o.palm.L;o.bar=k.C.clone();return o;},
+  equip(){buildTowers(eqG,.3);this.L1=G.pul[1].distanceTo(this.pose(1).kR.C);},
+  update(o){const k=o.kR,L=drawCable(1,k);drawCable(-1,null);G.stk[1].lift(.03+Math.max(0,L-this.L1));G.stk[-1].lift(0);}});
+MV.facepull=mod({trOff:0,
+  setup(){this.Tx=-1.05;},
+  pose(s){const d=cur.dims,{u,n}=standUN(-6*D),P=V(.02,HIPY()*.99,0);setTorso(P,u,n);const st=stance(V(.02,d.ankleH,0),FX,d.hipW+.05,10*D,.12);
+    const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.1},st)),pul=V(this.Tx+.18,G.S.y+.1,0);
+    for(const [sd,sg] of [['L',1],['R',-1]]){const lat=G.lat.clone().multiplyScalar(sg),Sj=SJ(sg),to=nz(pul.clone().addScaledVector(lat,.05).sub(Sj));
+      const du1=to,f1=to,du0=nz(vsum(lat,.92,n,-.18,u,.12)),f0=nz(vsum(u,.85,n,.35,lat,-.1));const t=1-s,du=slerpV2(du1,du0,t),f=slerpV2(f1,f0,t);
+      const palm=perp(slerpV2(lat.clone().negate(),n,t),f),k=fk(sg,du,f,palm);setArm(o,sd,k);o['k'+sd]=k;}
+    o.bar=o.kL.C.clone();o.pul=pul;return o;},
+  equip(){const g=eqG;this.tw=tower1(g,this.Tx,0);this.rope=ropeSet(g);const o1=this.pose(1);this.L1=o1.pul.distanceTo(o1.kL.C.clone().add(o1.kR.C).multiplyScalar(.5))-.16;},
+  update(o){const a=o.kL.C,b=o.kR.C,pul=o.pul,mid=a.clone().add(b).multiplyScalar(.5),A=mid.clone().addScaledVector(nz(pul.clone().sub(mid)),.16);
+    drawRope(this.rope,pul,A,a,b);this.tw.st.lift(.02+Math.max(0,pul.distanceTo(A)-this.L1));}});
+MV.pike=mod({trOff:.5,
+  setup(){const d=cur.dims,sc=prof.scale;this.A=V(-.62,d.foot*.88+.012,0);this.Lb=legL()*.99+.02;this.W0=null;},
+  body(S){const d=cur.dims,Lb=this.Lb,sp=d.spine,A=this.A;const dx=S.x-A.x,dy=S.y-A.y,D2=Math.hypot(dx,dy);const a=(Lb*Lb-sp*sp+D2*D2)/(2*D2),h=Math.sqrt(Math.max(0,Lb*Lb-a*a));
+    const ex=dx/D2,ey=dy/D2;const P=V(A.x+ex*a-ey*h,A.y+ey*a+ex*h,0);const u=nz(S.clone().sub(P));const n=V(u.y,-u.x,0);return {P,u,n};},
+  pose(s){const d=cur.dims,L=armL();if(!this.W0){const t=this.body(V(.3,.72,0));setTorso(t.P,t.u,t.n);this.la=G.lat.clone();this.W0={1:V(.36,.052,0).addScaledVector(this.la,d.shW+.08),[-1]:V(.36,.052,0).addScaledVector(this.la,-(d.shW+.08))};}
+    const top=V(.36-L*.985*Math.sin(28*D),.052+L*.985*Math.cos(28*D),0),bot=V(.33,.27,0),S=top.clone().lerp(bot,s),b=this.body(S);setTorso(b.P,b.u,b.n);
+    const la=this.la,o=O({feet:{L:this.A.clone().addScaledVector(la,.08),R:this.A.clone().addScaledVector(la,-.08)},toeDir:{L:nz(vsum(b.n,1,WY,-.3,XX,1)),R:nz(vsum(b.n,1,WY,-.3,XX,1))},toeFree:true,kneePole:nz(V(.2,1,0)),kneeOut:.02,noCurl:true,
+      hands:{L:this.W0[1].clone(),R:this.W0[-1].clone()},palm:{L:V(-1,0,0),R:V(-1,0,0)},elbowPoles:{L:vsum(XX,-.5,WY,.3,la,.8),R:vsum(XX,-.5,WY,.3,la,-.8)},
+      handO:{L:{dir:nz(vsum(XX,1,la,.2)),palm:V(0,-1,0)},R:{dir:nz(vsum(XX,1,la,-.2)),palm:V(0,-1,0)}}});o.bar=S.clone();return o;},
+  equip(){mat(eqG,-.1,0,1.9,.62);}});
+
+
+/* ======================= v1.9 — full library part 2: back · arms ======================= */
+function beltEquip(g){const pl=(LOADI&&LOADI.plates)||[];G.bwp=[];G.chain=null;if(!pl.length)return;G.chain=tubeM(g,.005,STEEL(),6);G.belt=tubeM(g,.02,M.black,16);G.bwp=pl.map(kg=>{const p=plateMesh(kg);g.add(p);return p;});}
+function beltUpdate(){if(!G.chain)return;const P=G.P,front=P.clone().addScaledVector(G.n,.13).addScaledVector(G.u,-.02),rMax=Math.max(...G.bwp.map(p=>p.userData.r)),hole=front.clone().add(V(-.04,-.3,0)),c=hole.clone().add(V(0,-rMax+.03,0));
+  setTube(G.chain,front,hole);setTube(G.belt,P.clone().addScaledVector(G.lat,.16).addScaledVector(G.n,.05),P.clone().addScaledVector(G.lat,-.16).addScaledVector(G.n,.05));placePlates(G.bwp,c.clone().add(V(-.02,0,0)),XX);}
+const WDX=()=>.068*prof.scale,PXX=()=>.026*prof.scale+.016;
+
+/* ---------------- BACK ---------------- */
+MV.deadlift=mod({trOff:.62,
+  setup(){const d=cur.dims;this.st=stance(V(0,d.ankleH,0),FX,d.hipW+.02,8*D);this.gz=d.hipW+.11;},
+  pose(s){const d=cur.dims,dz=Math.abs(this.gz-d.shW),L=armL()*.985,dr=dl=>Math.sqrt(Math.max(.01,L*L-dz*dz-dl*dl));
+    const rMax=Math.max(.225,...((LOADI&&LOADI.plates)||[]).map(k=>PLG[k][0])),lam=lerp(0,46,Math.pow(s,1.1))*D,{u,n}=standUN(lam),dl=lerp(.08,-.035,s);
+    const yT=HIPY()*.995+d.spine-dr(.08)-WDX(),C=V(-.03,lerp(yT,rMax,s),0),W=vsum(C,1,WY,WDX(),XX,-PXX()),S=V(W.x+dl,W.y+dr(dl),0),P=vsum(S,1,u,-d.spine,n,-d.shZ);setTorso(P,u,n);
+    const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.22},this.st));
+    for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=W.clone().setZ(sg*this.gz);o.palm[sd]=XX.clone();o.elbowPoles[sd]=vsum(XX,1,ZZ,sg*.45);}o.bar=C;return o;},
+  update(o,J){putBar(J,o);}});
+MV.bbrow=mod({trOff:.62,
+  setup(){const d=cur.dims;this.st=stance(V(0,d.ankleH,0),FX,d.hipW+.04,10*D);},
+  pose(s){const d=cur.dims,h=hingeP(50*D,15*D,.07),gz=d.shW+.07,dz=gz-d.shW,drop=Math.sqrt(Math.max(.01,Math.pow(armL()*.985,2)-dz*dz));
+    const W1=V(G.S.x,G.S.y-drop,0),C0=vsum(h.P,1,h.u,d.spine*.42,h.n,prof.chestF+.045),W0=vsum(C0,1,WY,WDX(),XX,-PXX()),W=W0.clone().lerp(W1,s);
+    const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.15},this.st));
+    for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=W.clone().setZ(sg*gz);o.palm[sd]=XX.clone();o.elbowPoles[sd]=vsum(WY,.6,XX,.5,ZZ,sg*.55);}o.bar=W.clone();return o;},
+  update(o,J){putBar(J,o);}});
+MV.dbrow=mod({trOff:0,
+  setup(){const d=cur.dims,t=10*D;this.u=V(-Math.cos(t),Math.sin(t),0);this.n=V(-Math.sin(t),-Math.cos(t),0);this.BT=.47;this.P=V(.22,this.BT+.05+d.thigh*.97,0);},
+  pose(s){const d=cur.dims,BT=this.BT;setTorso(this.P.clone(),this.u,this.n);
+    const o=O({feet:{L:V(this.P.x+d.shin*.95,BT+.055,d.hipW*.95),R:V(this.P.x+.2,d.ankleH,-(d.hipW+.3))},toeDir:{L:nz(V(1,-.45,0)),R:V(-1,0,-.25)},toeFree:{L:true},kneePole:nz(V(-.3,-1,0)),kneeOut:.05});
+    const SL=SJ(1);o.hands.L=V(SL.x-.02,BT+.06,Math.min(SL.z,.26));o.palm.L=XX.clone();o.handO={L:{dir:V(-1,0,0),palm:V(0,-1,0)}};o.elbowPoles.L=vsum(XX,.3,ZZ,.5);
+    const SR=SJ(-1),W1=SR.clone().add(V(0,-armL()*.985,0)),W0=vsum(G.P,1,G.u,.24,G.lat,-(d.shW+.03),WY,-.03),W=W0.clone().lerp(W1,s);
+    o.hands.R=W;o.palm.R=ZZ.clone();o.elbowPoles.R=vsum(WY,1,XX,.6,ZZ,-.2);o.bar=W.clone();return o;},
+  equip(){const g=eqG,SLx=this.P.x-cur.dims.spine;flatBench(g,(SLx+this.P.x+cur.dims.shin)/2,.14,1.25,this.BT,false);dbG[0].visible=false;},
+  update(o,J){placeDB(J,o);}});
+MV.tbar=mod({trOff:0,
+  setup(){const d=cur.dims;this.st=stance(V(0,d.ankleH,0),FX,d.hipW+.12,16*D);this.Pv=V(1.2,.07,0);},
+  pose(s){const d=cur.dims,h=hingeP(46*D,16*D,.05),drop=armL()*.985;const W1=V(G.S.x,G.S.y-drop,0),C0=vsum(h.P,1,h.u,d.spine*.62,h.n,prof.chestF+.08),W0=C0.clone().add(V(0,WDX(),0)),W=W0.clone().lerp(W1,s);
+    const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.3},this.st));
+    for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=W.clone().setZ(sg*.06);o.palm[sd]=ZZ.clone().multiplyScalar(-sg);o.elbowPoles[sd]=vsum(WY,.5,XX,.6,ZZ,sg*.45);}o.bar=W.clone();return o;},
+  equip(){const g=eqG;mesh(new THREE.CylinderGeometry(.09,.11,.06,24),M.black,this.Pv.x,.03,0,g);mesh(new THREE.SphereGeometry(.045,16,12),M.gold,this.Pv.x,.075,0,g);
+    this.bar=tubeM(g,.0145,knurlM,20);this.slv=tubeM(g,.025,steelM,20);this.va=tubeM(g,.012,M.chrome,10);this.vb=tubeM(g,.012,M.chrome,10);this.gl=tubeM(g,.016,M.rubber,14);this.gr=tubeM(g,.016,M.rubber,14);
+    this.pl=((LOADI&&LOADI.pl)||[]).map(kg=>{const p=plateMesh(kg);g.add(p);return p;});},
+  update(o,J){const a=gC(J,o,'L'),b=gC(J,o,'R'),C=a.clone().add(b).multiplyScalar(.5),B=C.clone().add(V(0,.11,0)),dir=nz(B.clone().sub(this.Pv)),E=B.clone().addScaledVector(dir,.45);
+    setTube(this.bar,this.Pv,B.clone().addScaledVector(dir,.04));setTube(this.slv,B.clone().addScaledVector(dir,.04),E);setTube(this.va,B,a);setTube(this.vb,B,b);
+    setTube(this.gl,a.clone().add(V(0,-.05,0)),a.clone().add(V(0,.05,0)));setTube(this.gr,b.clone().add(V(0,-.05,0)),b.clone().add(V(0,.05,0)));placePlates(this.pl,B.clone().addScaledVector(dir,.1),dir);}});
+MV.mrow=mod({trOff:0,
+  setup(){this.P=V(.34,.58,0);},
+  pose(s){const d=cur.dims;seatedFrame(this.P,-4);const ax=this.P.x-d.thigh*.92,o=O({feet:{L:V(ax,d.ankleH,d.hipW+.1),R:V(ax,d.ankleH,-(d.hipW+.1))},toeDir:{L:V(-1,0,.3),R:V(-1,0,-.3)},kneePole:nz(V(-.6,1,0)),kneeOut:.25});
+    for(const [sd,sg] of [['L',1],['R',-1]]){const lat=G.lat.clone().multiplyScalar(sg),Sj=SJ(sg),W1=vsum(Sj,1,G.n,armL()*.93,G.u,-.1,lat,-.02),W0=vsum(Sj,1,G.n,.05,G.u,-.24,lat,.07);
+      o.hands[sd]=W0.clone().lerp(W1,s);o.palm[sd]=lat.clone().negate();o.elbowPoles[sd]=vsum(G.n,-.7,G.u,-.5,lat,.35);}o.bar=o.hands.L.clone();return o;},
+  equip(){const g=eqG,P=this.P,{u,n}=seatedFrame(P,-4);seatAt(g,P,u,n,0,.44);const cp=vsum(G.chest,1,n,.1);const pd=rbox(.09,.42,.38,.035,M.leather,cp.x,cp.y-.02,0,g);cyl(V(cp.x-.06,cp.y-.1,0),V(cp.x-.25,.06,0),.03,M.alu,g);
+    const cx=P.x-1.0;rbox(.12,2.0,.14,.03,M.white,cx,1.0,0,g);rbox(.7,.1,.12,.03,M.white,cx+.3,1.95,0,g);this.stk=mkStack(g,V(cx-.3,0,0),Math.PI/2);this.h={};for(const sg of [1,-1])this.h[sg]={g:tubeM(g,.017,M.rubber,16),a:tubeM(g,.026,M.alu)};
+    try{badge(g,'PUTTCLUB','SEATED ROW',.3,.09,cx+.065,1.5,0,Math.PI/2);}catch(e){}},
+  update(o,J,s){for(const [sd,sg] of [['L',1],['R',-1]]){const c=gC(J,o,sd),h=this.h[sg];setTube(h.g,c.clone().add(V(0,-.07,0)),c.clone().add(V(0,.07,0)));setTube(h.a,c.clone().add(V(0,.07,0)),V(this.P.x-.6,1.9,sg*.3));}this.stk.lift((1-s)*.28);}});
+MV.pulldown=mod({trOff:0,
+  setup(){this.P=V(.12,.57,0);},
+  pose(s){const d=cur.dims,{u,n}=seatedFrame(this.P,13),g=d.shW*1.75,dz=g-d.shW,rv=Math.sqrt(Math.max(.02,Math.pow(armL()*.985+WDX()*.5,2)-dz*dz));
+    const C1=vsum(G.S,1,u,rv,n,.05),C0=vsum(G.S,1,n,prof.chestF+.06,u,.05),C=C0.clone().lerp(C1,s).addScaledVector(n,.06*Math.sin(Math.PI*s));const ax=this.P.x-d.thigh*.95;
+    const o=O({feet:{L:V(ax,d.ankleH,d.hipW+.08),R:V(ax,d.ankleH,-(d.hipW+.08))},toeDir:{L:V(-1,0,.25),R:V(-1,0,-.25)},kneePole:nz(V(-.5,1,0)),kneeOut:.2});
+    for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=vsum(C,1,G.lat,sg*g,u,-WDX()*.9,n,-PXX()*.9);o.palm[sd]=n.clone();o.elbowPoles[sd]=vsum(u,-.6,G.lat,sg*.9,n,-.25);}o.bar=C;return o;},
+  equip(){const g=eqG,P=this.P,d=cur.dims;seatAt(g,P,WY,FX,0,.42);const K=P.clone().add(V(-d.thigh*.95,.11,0));for(const sg of [1,-1]){const m=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.2,20),M.leather);m.rotation.x=Math.PI/2;m.position.set(K.x,K.y+.04,sg*.14);g.add(m);}
+    cyl(V(K.x,K.y+.04,0),V(P.x-.5,K.y+.04,0),.025,M.alu,g);const cx=P.x-.62;rbox(.12,2.45,.14,.03,M.white,cx,1.225,0,g);rbox(.7,.1,.12,.03,M.white,cx+.32,2.42,0,g);this.pul=V(P.x-.02,2.33,0);
+    const wh=new THREE.Mesh(new THREE.TorusGeometry(.045,.014,10,24),M.gold);wh.position.copy(this.pul).add(V(0,.03,0));g.add(wh);this.stk=mkStack(g,V(cx-.28,0,0),Math.PI/2);this.cb=cableBar(g,1.2);
+    try{badge(g,'PUTTCLUB','LAT PULLDOWN',.34,.1,cx+.065,1.55,0,Math.PI/2);}catch(e){}const o1=this.pose(1);this.L1=this.pul.distanceTo(o1.bar);},
+  update(o,J){const a=gC(J,o,'L'),b=gC(J,o,'R'),L=drawCBar(this.cb,this.pul,a,b);this.stk.lift(.02+Math.max(0,L-this.L1));}});
+MV.crow=mod({trOff:0,
+  setup(){const d=cur.dims;this.P=V(.45,.4,0);this.Ax=this.P.x-legL()*.86;},
+  pose(s){const d=cur.dims,{u,n}=standUN(lerp(-6,24,s)*D),P=this.P.clone();setTorso(P,u,n);const fy=.3;
+    const o=O({feet:{L:V(this.Ax,fy,d.hipW+.03),R:V(this.Ax,fy,-(d.hipW+.03))},toeDir:{L:nz(V(-.42,1,.05)),R:nz(V(-.42,1,-.05))},toeFree:true,kneePole:nz(V(-.2,1,0)),kneeOut:.2});
+    const mid=G.S.clone(),C1=vsum(mid,1,FX,armL()*.95,WY,-.12),C0=vsum(P,1,u,.24,n,prof.chestF+.1),C=C0.clone().lerp(C1,s);
+    for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=vsum(C,1,ZZ,sg*.06,FX,-WDX()*.9);o.palm[sd]=ZZ.clone().multiplyScalar(-sg);o.elbowPoles[sd]=vsum(WY,-.6,XX,.5,ZZ,sg*.35);}o.bar=C;return o;},
+  equip(){const g=eqG,P=this.P;rbox(1.3,.07,.34,.03,M.leather,P.x+.25,P.y-.135,0,g);rbox(1.3,.25,.08,.02,M.alu,P.x+.25,(P.y-.17)/2,0,g);
+    const fx=this.Ax-.085;const fp=rbox(.04,.34,.5,.02,M.black,fx,.32,0,g);fp.rotation.z=.4;cyl(V(fx-.05,.05,0),V(fx,.25,0),.03,M.alu,g);
+    const cx=fx-.4;rbox(.12,1.9,.14,.03,M.white,cx,.95,0,g);this.stk=mkStack(g,V(cx-.28,0,0),Math.PI/2);this.pul=V(cx+.1,.62,0);const wh=new THREE.Mesh(new THREE.TorusGeometry(.04,.014,10,24),M.gold);wh.position.copy(this.pul);g.add(wh);
+    this.h=handleSet(g);this.h.b.visible=true;try{badge(g,'PUTTCLUB','LOW ROW',.3,.09,cx+.065,1.5,0,Math.PI/2);}catch(e){}this.L1=this.pul.distanceTo(this.pose(1).bar);},
+  update(o,J){const a=gC(J,o,'L'),b=gC(J,o,'R'),C=a.clone().add(b).multiplyScalar(.5);const L=drawHandle(this.h,this.pul,C,nz(a.clone().sub(b)),FX);this.stk.lift(.02+Math.max(0,L-this.L1));}});
+MV.sapd=mod({trOff:0,
+  setup(){this.Tx=-1.0;},
+  dir(s){const a=nz(vsum(G.u,-1,G.n,.3)),b=nz(vsum(FX,.62,WY,.78));return slerpV2(a,b,Math.max(0,Math.min(1,s)));},
+  pose(s){const d=cur.dims,{u,n}=standUN(28*D),P=V(.12,HIPY()*.975,0);setTorso(P,u,n);const st=stance(V(.0,d.ankleH,0),FX,d.hipW+.04,8*D);
+    const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.12},st)),dr=this.dir(s),pm=nz(this.dir(s-.03).sub(this.dir(s+.03)));
+    for(const [sd,sg] of [['L',1],['R',-1]]){const lat=G.lat.clone().multiplyScalar(sg),du=nz(vsum(dr,1,pm,-.06)),f=nz(vsum(dr,1,pm,.1));const k=fk(sg,du,f,perp(pm,f));setArm(o,sd,k);o['k'+sd]=k;}
+    o.bar=o.kL.C.clone();return o;},
+  equip(){const g=eqG;this.tw=tower1(g,this.Tx,2.05);this.cb=cableBar(g,.62);const o1=this.pose(1);this.L1=this.tw.pul.distanceTo(o1.kL.C.clone().add(o1.kR.C).multiplyScalar(.5));},
+  update(o,J){const a=gC(J,o,'L'),b=gC(J,o,'R'),L=drawCBar(this.cb,this.tw.pul,a,b);this.tw.st.lift(.02+Math.max(0,L-this.L1));}});
+MV.pullup=mod({trOff:.5,
+  setup(){const d=cur.dims;this.g=d.shW*1.62;const dz=this.g-d.shW;this.drop=Math.sqrt(Math.max(.02,Math.pow(armL()*.985,2)-dz*dz));
+    this.HB=Math.max(2.22,.16+d.thigh*.94+d.shin*.55+d.spine+this.drop+WDX());},
+  pose(s){const d=cur.dims,HB=this.HB,{u,n}=standUN(lerp(-13,-3,s)*D),S=V(lerp(.08,.0,s),lerp(HB-.18,HB-WDX()-this.drop,s),0),P=vsum(S,1,u,-d.spine,n,-d.shZ);setTorso(P,u,n);
+    const kd=nz(vsum(WY,-Math.cos(20*D),FX,Math.sin(20*D))),sd2=nz(vsum(WY,-.55,XX,.85)),feet={};for(const [sd,sg] of [['L',1],['R',-1]]){const K=P.clone().addScaledVector(kd,d.thigh*.97).setZ(sg*.06);feet[sd]=K.clone().addScaledVector(sd2,d.shin*.96).setZ(-sg*.03);}
+    const o=O({feet,toeDir:{L:nz(V(.35,-1,0)),R:nz(V(.35,-1,0))},toeFree:true,kneePole:FX.clone(),kneeOut:.05});
+    for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=V(PXX()*.9,HB-WDX(),sg*this.g);o.palm[sd]=FX.clone();o.elbowPoles[sd]=vsum(WY,-.4,ZZ,sg*.9,FX,.25);}o.bar=S.clone();return o;},
+  equip(){const g=eqG,HB=this.HB;for(const z of [-.85,.85]){rbox(.08,HB+.15,.08,.02,M.white,.05,(HB+.15)/2,z,g);rbox(.9,.05,.1,.015,M.black,.05,.025,z,g);}
+    cyl(V(0,HB,-.88),V(0,HB,.88),.016,M.chrome,g,20);rbox(.08,.08,1.78,.02,M.white,.06,HB+.15,0,g);rbox(.014,HB*.7,.016,.005,M.gold,.0,HB*.45,.85,g);try{badge(g,'PUTTCLUB','PULL-UP',.3,.09,.0,HB+.15,0,-Math.PI/2);}catch(e){}beltEquip(g);},
+  update(){beltUpdate();}});
+MV.hyper=mod({trOff:.4,
+  setup(){const d=cur.dims;this.dl=nz(V(-1,1,0));this.A=V(.62,.3,0);this.P=this.A.clone().addScaledVector(this.dl,legL()*.985);},
+  pose(s){const d=cur.dims,t=(135+lerp(-6,78,s))*D,u=V(Math.cos(t),Math.sin(t),0),n=V(-u.y,u.x,0);setTorso(this.P.clone(),u,n);const fz=d.hipW*.8,tn=V(-.707,-.707,0);
+    const o=O({feet:{L:this.A.clone().setZ(fz),R:this.A.clone().setZ(-fz)},toeDir:{L:tn,R:tn},toeFree:true,kneePole:tn.clone(),kneeOut:.03});
+    if(G.bwp&&G.bwp.length){const pc=vsum(G.S,1,n,prof.chestF+.06,u,-.13),r=G.bwp[0].userData.r;for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=vsum(pc,1,G.lat,sg*(r-.01),n,-.02);o.palm[sd]=G.lat.clone().multiplyScalar(-sg);o.elbowPoles[sd]=vsum(n,.3,G.lat,sg,u,-.6);}o.pc=pc;}
+    else for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=vsum(G.S,1,n,prof.chestF*.9,G.lat,-sg*.1,u,-.1);o.elbowPoles[sd]=vsum(n,.6,G.lat,sg*.8,u,-.4);}
+    o.bar=G.S.clone();return o;},
+  equip(){const g=eqG,P=this.P,A=this.A,tn=V(-.707,-.707,0),bk=V(.707,.707,0);G.bwp=((LOADI&&LOADI.plates)||[]).map(kg=>{const p=plateMesh(kg);g.add(p);return p;});
+    const pc=vsum(P,1,this.dl,-.1,tn,.13);const pad=rbox(.1,.36,.42,.04,M.leather,pc.x,pc.y,0,g);pad.rotation.z=Math.PI/4;
+    const rc=vsum(A,1,bk,.08,this.dl,.06);for(const z of [-.12,.12]){const m=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.18,20),M.leather);m.rotation.x=Math.PI/2;m.position.set(rc.x,rc.y,z);g.add(m);}
+    const fp=vsum(A,1,tn,.08,this.dl,-.06);const f=rbox(.04,.26,.4,.015,M.black,fp.x,fp.y,0,g);f.rotation.z=-Math.PI/4;
+    cyl(V(pc.x+.08,.06,0),V(pc.x+.1,pc.y-.12,0),.035,M.white,g);cyl(V(rc.x+.05,.06,0),V(rc.x,rc.y-.03,0),.03,M.white,g);rbox(1.2,.06,.1,.02,M.black,(pc.x+rc.x)/2+.05,.03,0,g);
+    for(const z of [-.24,.24])cyl(V(pc.x+.08,pc.y-.12,z),V(rc.x,rc.y-.03,z),.02,M.alu,g);},
+  update(o){if(o.pc)placePlates(G.bwp,o.pc.clone().addScaledVector(G.n,.0),G.n);}});
+
+/* ---------------- ARMS ---------------- */
+/* curls: upper arm fixed at the side; the forearm rotates in the sagittal plane (palm follows the grip type) */
+function curlMod(cfg){return mod({trOff:cfg.bar?.5:.3,
+  setup(){this.Tx=-.62;},
+  pose(s){const d=cur.dims,{u,n}=standUN((cfg.cable?6:3)*D),P=V(0,HIPY()*.995,0);setTorso(P,u,n);const st=stance(V(0,d.ankleH,0),FX,d.hipW+.04,10*D,cfg.cable?.1:0);
+    const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.08},st));
+    for(const [sd,sg] of [['L',1],['R',-1]]){const lat=G.lat.clone().multiplyScalar(sg),du=nz(vsum(u,-1,n,.07,lat,cfg.bar?.02:.07)),a=nz(new THREE.Vector3().crossVectors(du,n)),th=lerp(cfg.hammer?132:142,8,s)*D,f=rotV(du,a,th);
+      const palm=cfg.hammer?lat.clone().negate():nz(new THREE.Vector3().crossVectors(a,f));const k=fk(sg,du,f,palm);setArm(o,sd,k);o['k'+sd]=k;}
+    o.bar=o.kL.C.clone().setZ(0);return o;},
+  equip(){if(cfg.cable){const g=eqG;this.tw=tower1(g,this.Tx,.12);this.cb=cableBar(g,.5);const o1=this.pose(1);this.L1=this.tw.pul.distanceTo(o1.kL.C.clone().add(o1.kR.C).multiplyScalar(.5));}},
+  update(o,J){if(cfg.db){placeDB(J,o);return;}if(cfg.cable){const a=gC(J,o,'L'),b=gC(J,o,'R'),L=drawCBar(this.cb,this.tw.pul,a,b);this.tw.st.lift(.02+Math.max(0,L-this.L1));return;}putBar(J,o);}});}
+MV.bbcurl=curlMod({bar:true});MV.hammer=curlMod({db:true,hammer:true});MV.ccurl=curlMod({cable:true});
+MV.skull=mod({trOff:.5,
+  setup(){const d=cur.dims;this.P=V(.30-d.spine-d.shZ*0,BENCH_TOP+prof.back,0);},
+  pose(s){const d=cur.dims,u=XX.clone(),n=WY.clone();setTorso(this.P.clone(),u,n);const footX=this.P.x-.40*(d.thigh/.4),fz=d.hipW+.17;
+    const o=O({feet:{L:V(footX,d.ankleH,fz),R:V(footX,d.ankleH,-fz)},toeDir:{L:V(-1,0,.4),R:V(-1,0,-.4)},kneePole:V(-.6,1,0),kneeOut:.5});
+    for(const [sd,sg] of [['L',1],['R',-1]]){const lat=G.lat.clone().multiplyScalar(sg),du=nz(vsum(n,.96,u,.27,lat,-.08)),a=nz(new THREE.Vector3().crossVectors(du,u)),f=rotV(du,a,lerp(4,118,s)*D);
+      const palm=nz(new THREE.Vector3().crossVectors(a,f)).negate(),k=fk(sg,du,f,palm);setArm(o,sd,k);o['k'+sd]=k;}
+    o.bar=o.kL.C.clone().setZ(0);return o;},
+  update(o,J){putBar(J,o);}});
+MV.wrist=mod({trOff:.45,
+  setup(){this.P=V(.32,.56,0);},
+  hand(s){const w=lerp(45,-55,s)*D,a=V(0,0,-1);return {dir:rotV(FX,a,w),palm:rotV(WY,a,w)};},
+  pose(s){const d=cur.dims,{u,n}=standUN(50*D),P=this.P.clone();setTorso(P,u,n);const K=P.clone().add(V(-d.thigh*.97,-.03,0)),h=this.hand(s);
+    const o=O({feet:{L:V(K.x-.02,d.ankleH,d.hipW+.1),R:V(K.x-.02,d.ankleH,-(d.hipW+.1))},toeDir:{L:V(-1,0,.3),R:V(-1,0,-.3)},kneePole:nz(V(-.6,1,0)),kneeOut:.2,handO:{L:h,R:h}});
+    for(const [sd,sg] of [['L',1],['R',-1]]){o.hands[sd]=V(K.x-.09,K.y+.085,sg*(d.hipW*.9+.03));o.palm[sd]=WY.clone();o.elbowPoles[sd]=vsum(WY,-1,XX,.5,ZZ,sg*.1);}o.bar=V(K.x-.17,K.y+.1,0);o.wh=h;return o;},
+  equip(){flatBench(eqG,this.P.x+.42,0,1.2,.47,false);},
+  update(o,J){const h=o.wh,p=sd=>J[sd].wr.clone().addScaledVector(h.dir,.085).addScaledVector(h.palm,.03),a=p('L'),b=p('R');bar.position.copy(a).add(b).multiplyScalar(.5);bar.quaternion.setFromUnitVectors(ZZ,nz(a.sub(b)));}});
+function armPadMod(tri){return mod({trOff:0,
+  setup(){this.P=V(.38,.62,0);},
+  pose(s){const d=cur.dims;seatedFrame(this.P,-12);const ax=this.P.x-d.thigh*.92,o=O({feet:{L:V(ax,d.ankleH,d.hipW+.1),R:V(ax,d.ankleH,-(d.hipW+.1))},toeDir:{L:V(-1,0,.3),R:V(-1,0,-.3)},kneePole:nz(V(-.6,1,0)),kneeOut:.25});
+    for(const [sd,sg] of [['L',1],['R',-1]]){const lat=G.lat.clone().multiplyScalar(sg),du=nz(vsum(FX,.72,WY,-.62,lat,.06)),t0=nz(vsum(WY,.9,XX,.25)),a=nz(new THREE.Vector3().crossVectors(du,t0));
+      const f=rotV(du,a,(tri?lerp(8,105,s):lerp(128,14,s))*D),palm=tri?lat.clone().negate():nz(new THREE.Vector3().crossVectors(a,f)),k=fk(sg,du,f,palm);setArm(o,sd,k);o['k'+sd]=k;}
+    o.bar=o.kL.C.clone();return o;},
+  equip(){const g=eqG,P=this.P,{u,n}=seatedFrame(P,-12),d=cur.dims;seatAt(g,P,u,n,0,.42);const o=this.pose(0);
+    const du=nz(vsum(FX,.72,WY,-.62)),pn=nz(vsum(WY,.72,FX,.62)),Em=o.kL.E.clone().add(o.kR.E).multiplyScalar(.5).setZ(0),pc=vsum(Em,1,du,-.13,pn,-.07);
+    const pad=rbox(.32,.07,.5,.03,M.leather,pc.x,pc.y,0,g);pad.rotation.z=Math.atan2(du.y,du.x)+Math.PI;cyl(V(pc.x+.05,.06,0),pc.clone().add(V(.02,-.05,0)),.04,M.white,g);rbox(.7,.05,.5,.015,M.black,pc.x+.15,.025,0,g);
+    this.pv=Em.clone().setZ(-(d.shW+.24));mesh(new THREE.CylinderGeometry(.06,.06,.08,24),M.gold,this.pv.x,this.pv.y,this.pv.z,g).rotation.x=Math.PI/2;cyl(this.pv,V(pc.x+.05,.06,this.pv.z),.035,M.white,g);
+    this.lev=tubeM(g,.03,M.white);this.hb=tubeM(g,.016,M.rubber,16);this.lk=tubeM(g,.018,M.alu);rbox(.12,1.7,.14,.03,M.white,P.x+.62,.85,0,g);this.stk=mkStack(g,V(P.x+.95,0,0),-Math.PI/2);
+    try{badge(g,'PUTTCLUB',tri?'ARM EXTENSION':'ARM CURL',.32,.09,P.x+.557,1.4,0,-Math.PI/2);}catch(e){}},
+  update(o,J,s){const a=o.kL.C,b=o.kR.C,dn=V(0,-.06,0);let att;
+    if(tri){setTube(this.hb,a.clone().add(dn),a.clone().sub(dn));this.lk2=this.lk2||tubeM(eqG,.016,M.rubber,16);setTube(this.lk2,b.clone().add(dn),b.clone().sub(dn));this.cb2=this.cb2||tubeM(eqG,.014,M.alu);setTube(this.cb2,a.clone().add(dn),b.clone().add(dn));att=b.clone().add(dn);}
+    else{setTube(this.hb,a.clone().add(V(0,0,.06)),b.clone().add(V(0,0,-.06)));att=b.clone().add(V(0,0,-.06));}
+    const end=att.clone().setZ(this.pv.z);setTube(this.lev,this.pv,end);setTube(this.lk,end,att);this.stk.lift((1-s)*.22);}});}
+MV.preacher=armPadMod(false);MV.triext=armPadMod(true);
+MV.pushdown=mod({trOff:0,
+  setup(){this.Tx=-.62;},
+  pose(s){const d=cur.dims,{u,n}=standUN(10*D),P=V(.02,HIPY()*.99,0);setTorso(P,u,n);const st=stance(V(.02,d.ankleH,0),FX,d.hipW+.04,10*D,.08);
+    const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.1},st));
+    for(const [sd,sg] of [['L',1],['R',-1]]){const lat=G.lat.clone().multiplyScalar(sg),du=nz(vsum(u,-1,n,.1,lat,.05)),a=nz(new THREE.Vector3().crossVectors(du,n)),f=nz(vsum(rotV(du,a,lerp(0,100,s)*D),1,lat,.3*(1-s)));
+      const k=fk(sg,du,f,perp(lat.clone().negate(),f));setArm(o,sd,k);o['k'+sd]=k;}
+    o.bar=o.kL.C.clone();return o;},
+  equip(){const g=eqG;this.tw=tower1(g,this.Tx,2.05);this.rope=ropeSet(g);const o1=this.pose(1);this.L1=this.tw.pul.distanceTo(o1.kL.C.clone().add(o1.kR.C).multiplyScalar(.5).add(V(0,.17,0)));},
+  update(o,J){const a=gC(J,o,'L'),b=gC(J,o,'R'),A=a.clone().add(b).multiplyScalar(.5).add(V(0,.17,0));drawRope(this.rope,this.tw.pul,A,a,b);this.tw.st.lift(.02+Math.max(0,this.tw.pul.distanceTo(A)-this.L1));}});
+MV.benchdip=mod({trOff:.5,
+  setup(){const d=cur.dims;this.bx=.32;this.W={1:V(this.bx-.06,.5,d.shW-.01),[-1]:V(this.bx-.06,.5,-(d.shW-.01))};const L=armL();
+    this.St=V(this.bx-.2,.5+L*.95,0);this.Sb=V(this.bx-.24,.5+.1,0);const t=this.sol(0);this.Ax=t.P.x-Math.sqrt(Math.max(.05,Math.pow(legL()*.975,2)-Math.pow(t.P.y-d.ankleH,2)));},
+  sol(s){const d=cur.dims,S=this.St.clone().lerp(this.Sb,s),{u,n}=standUN(-5*D),P=vsum(S,1,u,-d.spine,n,-d.shZ);return {S,P,u,n};},
+  pose(s){const d=cur.dims,t=this.sol(s);setTorso(t.P,t.u,t.n);const fz=d.hipW+.04,td=nz(V(-.6,.8,0));
+    const o=O({feet:{L:V(this.Ax,d.ankleH,fz),R:V(this.Ax,d.ankleH,-fz)},toeDir:{L:td,R:td},toeFree:true,kneePole:WY.clone(),kneeOut:.1,
+      hands:{L:this.W[1].clone(),R:this.W[-1].clone()},palm:{L:XX.clone(),R:XX.clone()},handO:{L:{dir:nz(V(-1,-.35,0)),palm:V(0,-1,0)},R:{dir:nz(V(-1,-.35,0)),palm:V(0,-1,0)}},elbowPoles:{L:vsum(XX,1,ZZ,.15),R:vsum(XX,1,ZZ,-.15)},noCurl:true});o.bar=t.S.clone();return o;},
+  equip(){const g=eqG;flatBench(g,this.bx+.1,0,1.2,.45,true);G.bwp=((LOADI&&LOADI.plates)||[]).map(kg=>{const p=plateMesh(kg);g.add(p);return p;});},
+  update(){if(G.bwp.length)placePlates(G.bwp,vsum(G.P,1,FX,cur.dims.thigh*.5,WY,.09),WY);}});
+
+
+/* ======================= v1.9 — full library part 3: core · golf rotation · registration ======================= */
+/* torso frame after spine flex/twist (called from poseRig's T.post hook with live bone positions) */
+function postFrame(wp){const SL=wp('Bip01_L_UpperArm'),SR=wp('Bip01_R_UpperArm'),M=SL.clone().add(SR).multiplyScalar(.5),lat=nz(SL.clone().sub(SR)),H=wp('Bip01_Head'),up=nz(H.clone().sub(M));
+  const n=nz(new THREE.Vector3().crossVectors(lat,up)),u=nz(new THREE.Vector3().crossVectors(n,lat));return {SL,SR,M,lat,u,n,H,S:{L:SL,R:SR}};}
+/* functional-trainer column standing at (x,z) rotated by ry (local +x = the side the athlete works on) */
+function towerAt(g,x,z,py,ry){const tg=new THREE.Group();tg.position.set(x,0,z);tg.rotation.y=ry;g.add(tg);const t=tower1(tg,0,py);const p=t.pul;t.pul=V(x+p.x*Math.cos(ry)+p.z*Math.sin(ry),p.y,z-p.x*Math.sin(ry)+p.z*Math.cos(ry));return t;}
+const pulAt=(x,z,py,ry)=>V(x+.18*Math.cos(ry),py,z-.18*Math.sin(ry));
+const altSg=()=>MVC%2?-1:1;
+function bwPlates(g){G.bwp=((LOADI&&LOADI.plates)||[]).map(kg=>{const p=plateMesh(kg);g.add(p);return p;});return G.bwp;}
+const plW=()=>(G.bwp||[]).reduce((a,p)=>a+p.userData.w+.003,0);
+
+/* ---------------- CORE ---------------- */
+MV.rtwist=mod({trOff:0,
+  setup(){const sc=prof.scale;this.P=V(.1,.1*sc+.012,0);},
+  pose(s){const d=cur.dims,sg=altSg(),{u,n}=seatedFrame(this.P,40),K=vsum(this.P,1,FX,d.thigh*Math.cos(44*D),WY,d.thigh*Math.sin(44*D)),ay=d.ankleH*.9,Ax=K.x-Math.sqrt(Math.max(.01,d.shin*d.shin-Math.pow(K.y-ay,2)));
+    const o=O({feet:{L:V(Ax,ay,d.hipW*.85),R:V(Ax,ay,-d.hipW*.85)},toeDir:{L:nz(V(-1,.55,.15)),R:nz(V(-1,.55,-.15))},toeFree:true,kneePole:WY.clone(),kneeOut:.1,spine:{twist:sg*(1-s)*44*D,flex:10*D}});
+    o.post=(r,wp)=>{const f=postFrame(wp),r0=(G.bwp&&G.bwp.length)?G.bwp[0].userData.r:0,C=vsum(f.M,1,f.n,.33,f.u,-.2);o.pc=C;o.pn=f.n;
+      for(const [sd,g2] of [['L',1],['R',-1]]){o.hands[sd]=vsum(C,1,f.lat,g2*(r0?r0-.012:.04),f.n,-.04);o.palm[sd]=f.lat.clone().multiplyScalar(-g2);o.elbowPoles[sd]=vsum(f.lat,g2,f.u,-.5);}};
+    o.bar=vsum(this.P,1,FX,.3,WY,.42);return o;},
+  equip(){mat(eqG,-.15,0,1.9,.62);bwPlates(eqG);},
+  update(o){if(G.bwp.length&&o.pc)placePlates(G.bwp,o.pc.clone().addScaledVector(o.pn,-plW()/2),o.pn);}});
+MV.farmer=mod({trOff:0,
+  pose(s){const d=cur.dims,sg=altSg(),lift=Math.sin(Math.PI*s),P=V(0,HIPY()*.99-.012*lift,0),{u,n}=standUN(2*D);setTorso(P,u,n);const fz=d.hipW+.02,feet={},toeDir={},tf={};
+    for(const [sd,g2] of [['L',1],['R',-1]]){const up=g2===sg?lift:0;feet[sd]=V(-.1*up,d.ankleH+.17*up,g2*fz);toeDir[sd]=nz(V(-1,-.45*up,g2*.15));tf[sd]=up>.03;}
+    const o=O({feet,toeDir,toeFree:tf,kneePole:FX.clone(),kneeOut:.04});for(const [sd,g2] of [['L',1],['R',-1]])setArm(o,sd,hangK(g2,.12,.0));o.bar=P.clone();return o;},
+  equip(){mat(eqG,0,0,1.4,.9);},
+  update(o,J){placeDB(J,o);}});
+MV.mcrunch=mod({trOff:0,
+  setup(){this.P=V(.3,.58,0);},
+  pose(s){const d=cur.dims;seatedFrame(this.P,lerp(-6,4,s));const ax=this.P.x-d.thigh*.92;
+    const o=O({feet:{L:V(ax,d.ankleH,d.hipW+.1),R:V(ax,d.ankleH,-(d.hipW+.1))},toeDir:{L:V(-1,0,.3),R:V(-1,0,-.3)},kneePole:nz(V(-.6,1,0)),kneeOut:.25,spine:{flex:lerp(46,4,s)*D}});
+    o.post=(r,wp)=>{const f=postFrame(wp);for(const [sd,g2] of [['L',1],['R',-1]]){o.hands[sd]=vsum(f.S[sd],1,f.u,.13,f.n,.06,f.lat,g2*.03);o.palm[sd]=nz(vsum(f.u,-1,f.n,-.2));o.elbowPoles[sd]=vsum(f.n,1,f.u,-.7,f.lat,g2*.45);}};
+    o.bar=G.chest.clone();return o;},
+  equip(){const g=eqG,P=this.P,d=cur.dims,{u,n}=seatedFrame(P,0);seatAt(g,P,u,n,.62,.44);this.pz=d.shW+.24;this.pv=V(P.x+.04,P.y+.24,0);
+    for(const sg of [1,-1])mesh(new THREE.CylinderGeometry(.06,.06,.08,24),M.gold,this.pv.x,this.pv.y,sg*this.pz,g).rotation.x=Math.PI/2;
+    this.lv={};for(const sg of [1,-1])this.lv[sg]={a:tubeM(g,.03,M.white),b:tubeM(g,.018,M.alu),h:tubeM(g,.017,M.rubber,16)};
+    rbox(.12,1.8,.14,.03,M.white,P.x+.62,.9,0,g);this.stk=mkStack(g,V(P.x+.95,0,0),-Math.PI/2);try{badge(g,'PUTTCLUB','AB CRUNCH',.3,.09,P.x+.557,1.45,0,-Math.PI/2);}catch(e){}},
+  update(o,J,s){for(const [sd,sg] of [['L',1],['R',-1]]){const c=gC(J,o,sd),L=this.lv[sg],e=c.clone().setZ(sg*this.pz);setTube(L.h,c.clone().addScaledVector(ZZ,-sg*.02),c.clone().addScaledVector(ZZ,sg*.1));setTube(L.b,c.clone().addScaledVector(ZZ,sg*.1),e);setTube(L.a,this.pv.clone().setZ(sg*this.pz),e);}this.stk.lift((1-s)*.22);}});
+MV.ccrunch=mod({trOff:0,
+  setup(){const d=cur.dims;this.Tx=-1.05;this.K=V(-.1,.06,0);this.P=V(this.K.x+.1,.06+Math.sqrt(d.thigh*d.thigh-.01)*.97,0);},
+  pose(s){const d=cur.dims,{u,n}=standUN(lerp(44,18,s)*D);setTorso(this.P.clone(),u,n);const fz=d.hipW*.95,td=nz(V(1,-.25,0));
+    const o=O({feet:{L:V(this.K.x+d.shin*.95,d.ankleH*.8,fz),R:V(this.K.x+d.shin*.95,d.ankleH*.8,-fz)},toeDir:{L:td,R:td},toeFree:true,kneePole:nz(V(-1,-1,0)),kneeOut:.04,spine:{flex:lerp(52,6,s)*D}});
+    o.post=(r,wp)=>{const f=postFrame(wp);for(const [sd,g2] of [['L',1],['R',-1]]){o.hands[sd]=vsum(f.H,1,f.lat,g2*.1,f.n,.07,f.u,-.05);o.palm[sd]=f.lat.clone().multiplyScalar(-g2);o.elbowPoles[sd]=vsum(f.n,1,f.u,-.8,f.lat,g2*.3);}};
+    o.bar=G.S.clone();return o;},
+  equip(){const g=eqG;mat(g,.05,0,1.3,.7);this.tw=tower1(g,this.Tx,2.05);this.rope=ropeSet(g);const o1=this.pose(1);this.L1=this.tw.pul.distanceTo(vsum(G.S,1,G.u,.12,G.n,.08));},
+  update(o,J){const a=gC(J,o,'L'),b=gC(J,o,'R'),m=a.clone().add(b).multiplyScalar(.5),A=m.clone().addScaledVector(nz(this.tw.pul.clone().sub(m)),.16);drawRope(this.rope,this.tw.pul,A,a,b);this.tw.st.lift(.02+Math.max(0,this.tw.pul.distanceTo(A)-this.L1));}});
+MV.pallof=mod({trOff:0,
+  setup(){this.tx=-.42;this.tz=1.35;},
+  pose(s){const d=cur.dims,{u,n}=standUN(5*D),P=V(.04,HIPY()*.955,0);setTorso(P,u,n);const st=stance(V(.04,d.ankleH,0),FX,d.hipW+.1,12*D);
+    if(!this.pul)this.pul=pulAt(this.tx,this.tz,G.chest.y-.04,Math.PI/2);
+    const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.22},st)),C0=vsum(G.chest,1,FX,armL()*.86,WY,-.04),C1=vsum(G.chest,1,FX,.13,WY,-.04),C=C0.clone().lerp(C1,s);
+    for(const [sd,g2] of [['L',1],['R',-1]]){o.hands[sd]=vsum(C,1,ZZ,g2*PXX()*.9,FX,-WDX()*.8,WY,-g2*.012);o.palm[sd]=ZZ.clone().multiplyScalar(-g2);o.elbowPoles[sd]=vsum(WY,-1,ZZ,g2*.35);}o.bar=C;return o;},
+  equip(){const g=eqG;this.pul=null;const o0=this.pose(0),o1=this.pose(1);this.tw=towerAt(g,this.tx,this.tz,this.pul.y,Math.PI/2);this.pul=this.tw.pul;this.h=handleSet(g);this.L1=Math.min(this.pul.distanceTo(o0.bar),this.pul.distanceTo(o1.bar));},
+  update(o,J){const a=gC(J,o,'L'),b=gC(J,o,'R'),C=a.clone().add(b).multiplyScalar(.5);const L=drawHandle(this.h,this.pul,C,WY,nz(this.pul.clone().sub(C)));this.tw.st.lift(.08+Math.max(0,L-this.L1));}});
+MV.plank=mod({trOff:0,
+  setup(){const d=cur.dims;this.Sx=-.35;this.Sy=.05+d.uarm*.97;},
+  pose(s){const d=cur.dims,Sy=this.Sy+.012*s,Ay=.1,Lt=legL()*.985+d.spine,th=Math.asin(Math.min(.9,(Sy-Ay)/Lt)),u=V(-Math.cos(th),Math.sin(th),0),n=V(-Math.sin(th),-Math.cos(th),0);
+    const S=V(this.Sx,Sy,0),P=vsum(S,1,u,-d.spine,n,-d.shZ);setTorso(P,u,n);const A=P.clone().addScaledVector(u,-legL()*.985),td=nz(V(-.2,-1,0));
+    const o=O({feet:{L:A.clone().setZ(d.hipW*.75),R:A.clone().setZ(-d.hipW*.75)},toeDir:{L:td,R:td},toeFree:true,kneePole:n.clone(),kneeOut:.02});
+    for(const [sd,g2] of [['L',1],['R',-1]]){const Sj=SJ(g2);o.hands[sd]=V(Sj.x-d.farm*.95,.055,g2*d.shW*.75);o.palm[sd]=ZZ.clone().multiplyScalar(-g2);o.elbowPoles[sd]=vsum(WY,-1,XX,.35);}o.noCurl=false;o.bar=P.clone();return o;},
+  equip(){mat(eqG,.1,0,2.1,.7);bwPlates(eqG);},
+  update(){if(G.bwp.length)placePlates(G.bwp,vsum(G.P,1,G.u,.2,G.n,-(prof.back+.005)),G.n.clone().negate());}});
+MV.splank=mod({trOff:0,
+  pose(s){const d=cur.dims,Ay=.075,Lt=legL()*.985+d.spine,Sry=.05+d.uarm*.97;let th=.3;for(let i=0;i<3;i++)th=Math.asin(Math.min(.9,(Sry+d.shW*Math.cos(th)-Ay-d.hipW*Math.cos(th)+.012*s)/Lt));
+    const u=V(-Math.cos(th),Math.sin(th),0),n=ZZ.clone(),lat=V(Math.sin(th),Math.cos(th),0),SR=V(-.4,Sry,0),S=SR.clone().addScaledVector(lat,d.shW),P=vsum(S,1,u,-d.spine,n,-d.shZ);setTorso(P,u,n);
+    const A=P.clone().addScaledVector(u,-legL()*.985);const o=O({feet:{L:A.clone().addScaledVector(lat,.06),R:A.clone().addScaledVector(lat,-.06)},toeDir:{L:ZZ.clone(),R:ZZ.clone()},toeFree:true,kneePole:ZZ.clone(),kneeOut:0});
+    const Sj=SJ(-1);o.hands.R=V(Sj.x,.055,Sj.z+d.farm*.95);o.palm.R=WY.clone().negate();o.elbowPoles.R=vsum(WY,-1,XX,.2);
+    o.hands.L=vsum(P,1,G.lat,d.hipW+.09,G.u,.1,G.n,.02);o.elbowPoles.L=vsum(G.lat,1,G.n,-.6);o.bar=P.clone();return o;},
+  equip(){mat(eqG,.1,0,2.1,.8);}});
+MV.captain=mod({trOff:0,
+  setup(){const d=cur.dims;this.HS=Math.max(1.5,.12+legL()+d.spine+.04);},
+  pose(s){const d=cur.dims,u=WY.clone(),n=FX.clone(),S=V(.0,this.HS,0),P=vsum(S,1,u,-d.spine,n,-d.shZ);setTorso(P,u,n);const t=1-s,kd=slerpV2(V(.08,-1,0).normalize(),nz(V(-1,.08,0)),t),sd2=slerpV2(kd,V(.05,-1,0).normalize(),t),feet={};
+    for(const [sd,g2] of [['L',1],['R',-1]])feet[sd]=vsum(P,1,G.lat,g2*d.hipW*.9,kd,d.thigh*.97,sd2,d.shin*.97);
+    const o=O({feet,toeDir:{L:nz(vsum(sd2,.3,FX,1)),R:nz(vsum(sd2,.3,FX,1))},toeFree:true,kneePole:FX.clone(),kneeOut:.04});
+    for(const [sd,g2] of [['L',1],['R',-1]]){const Sj=SJ(g2),E=Sj.clone().add(V(0,-d.uarm*.97,0));o.hands[sd]=E.clone().addScaledVector(FX,d.farm*.95).add(V(0,.02,0));o.palm[sd]=ZZ.clone().multiplyScalar(-g2);o.elbowPoles[sd]=vsum(XX,1,WY,-1);}
+    this.pz=d.shW+.03;this.ey=this.HS-d.uarm*.97-.06;o.bar=P.clone();return o;},
+  equip(){const g=eqG,d=cur.dims,ey=this.HS-d.uarm*.97-.06,pz=d.shW+.03;for(const sg of [1,-1]){rbox(.42,.07,.12,.03,M.leather,-.12,ey,sg*pz,g);rbox(.08,ey+.4,.08,.02,M.white,.16,(ey+.4)/2,sg*(pz+.12),g);rbox(.9,.05,.1,.015,M.black,-.05,.025,sg*(pz+.12),g);
+      cyl(V(-.33,ey+.02,sg*pz),V(-.33,ey+.13,sg*pz),.016,M.rubber,g,16);rbox(.28,.06,.1,.015,M.alu,.02,ey-.06,sg*(pz+.06),g);}
+    const bp=rbox(.07,.75,.38,.03,M.leather,.13+prof.back*.0,this.HS-.38,0,g);rbox(.06,.06,2*(pz+.12),.015,M.white,.16,ey+.4,0,g);rbox(.014,ey*.8,.016,.005,M.gold,.16,ey*.5,pz+.165,g);
+    try{badge(g,'PUTTCLUB',"CAPTAIN'S CHAIR",.32,.09,.164,ey+.25,0,-Math.PI/2);}catch(e){}}});
+MV.deadbug=mod({trOff:0,
+  setup(){this.P=V(.0,prof.back+.004,0);},
+  pose(s){const d=cur.dims,u=XX.clone(),n=WY.clone();setTorso(this.P.clone(),u,n);const sg=altSg(),feet={},toeDir={};
+    for(const [sd,g2] of [['L',1],['R',-1]]){const t=g2===-sg?s:0,H=this.P.clone().addScaledVector(G.lat,g2*d.hipW),kd=rotV(WY,ZZ,t*80*D),sd2=slerpV2(FX,kd,t);feet[sd]=vsum(H,1,kd,d.thigh*.97,sd2,d.shin*.97);toeDir[sd]=nz(slerpV2(WY,nz(vsum(kd,1,WY,.3)),t));}
+    const o=O({feet,toeDir,toeFree:true,kneePole:nz(V(-1,1,0)),kneeOut:.03});
+    for(const [sd,g2] of [['L',1],['R',-1]]){const t=g2===sg?s:0,du=rotV(WY,V(0,0,-1),t*80*D),k=fk(g2,du,du,G.lat.clone().multiplyScalar(-g2));setArm(o,sd,k);}o.bar=V(0,.5,0);return o;},
+  equip(){mat(eqG,0,0,2.0,.7);}});
+
+/* ---------------- GOLF ROTATION & POWER ---------------- */
+MV.medball=mod({trOff:0,
+  setup(){this.wz=1.75;this.br=Math.min(.14,.1+.005*(curLoad()||3));},
+  pose(s){const d=cur.dims,psi=lerp(36,-30,s)*D,{u,n}=standUN(lerp(9,17,s)*D,psi),P=V(.03,HIPY()*lerp(.965,.93,s),0);setTorso(P,u,n);const st=stance(V(.03,d.ankleH,0),FX,d.hipW+.13,14*D);
+    const C1=vsum(V(P.x,P.y,0),1,ZZ,-(d.hipW+.2),WY,.04,FX,.12),C0=vsum(V(P.x-.2,G.S.y-.12,0),1,ZZ,armL()*.82),C=C0.clone().lerp(C1,s).addScaledVector(FX,.22*Math.sin(Math.PI*s));
+    const db=nz(C.clone().sub(G.S).setY(0)),ax=nz(new THREE.Vector3().crossVectors(WY,db));const sgn=ax.dot(G.lat)>=0?1:-1,br=this.br;
+    const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.22,spine:{twist:lerp(20,-36,s)*D}},st));
+    for(const [sd,g2] of [['L',1],['R',-1]]){const a=ax.clone().multiplyScalar(sgn*g2);o.hands[sd]=vsum(C,1,a,br+.045,db,-.02);o.palm[sd]=a.clone().negate();o.elbowPoles[sd]=vsum(WY,-1,G.lat,g2*.5);}o.ball=C;o.bar=C.clone();return o;},
+  equip(){const g=eqG,br=this.br;const bm=new THREE.MeshStandardMaterial({color:0x1d1f22,roughness:.78,metalness:.05});this.ball=new THREE.Mesh(new THREE.SphereGeometry(br,40,28),bm);g.add(this.ball);
+    const band=new THREE.Mesh(new THREE.TorusGeometry(br*1.002,.006,8,48),M.gold);this.ball.add(band);const b2=band.clone();b2.rotation.y=Math.PI/2;this.ball.add(b2);
+    rbox(2.4,2.6,.1,.02,M.black,-.3,1.3,this.wz,g);const ring=new THREE.Mesh(new THREE.TorusGeometry(.32,.022,10,48),M.gold);ring.position.set(-.3,1.35,this.wz-.06);g.add(ring);
+    const ring2=new THREE.Mesh(new THREE.TorusGeometry(.12,.016,10,32),M.gold);ring2.position.copy(ring.position);g.add(ring2);mat(g,0,0,1.4,1.1);},
+  update(o){this.ball.position.copy(o.ball);}});
+MV.lmrot=mod({trOff:0,
+  setup(){const d=cur.dims;this.Pv=V(-1.9,.07,0);this.T0=V(-.48,(HIPY()+d.spine)*.93,0);this.Lb=this.T0.distanceTo(this.Pv);},
+  T1(sg){return V(-.32,HIPY()*.86,sg*.55);},
+  pose(s){const d=cur.dims,sg=altSg(),t=1-s,E=this.Pv.clone().addScaledVector(nz(this.T0.clone().lerp(this.T1(sg),t).sub(this.Pv)),this.Lb),dir=nz(E.clone().sub(this.Pv));
+    const {u,n}=standUN(11*D,sg*t*30*D),P=V(.03,HIPY()*.95,0);setTorso(P,u,n);const st=stance(V(.03,d.ankleH,0),FX,d.hipW+.12,14*D);
+    const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.25,spine:{twist:sg*t*26*D}},st));
+    o.hands.L=E.clone().addScaledVector(dir,-.03).add(V(0,.06,0));o.hands.R=E.clone().addScaledVector(dir,-.115).add(V(0,.06,0));for(const [sd,g2] of [['L',1],['R',-1]]){o.palm[sd]=WY.clone().negate();o.elbowPoles[sd]=vsum(WY,-1,G.lat,g2*.5);}
+    o.E=E;o.dir=dir;o.bar=E.clone();return o;},
+  equip(){const g=eqG;mesh(new THREE.CylinderGeometry(.09,.11,.06,24),M.black,this.Pv.x,.03,0,g);mesh(new THREE.SphereGeometry(.045,16,12),M.gold,this.Pv.x,.075,0,g);
+    this.bar=tubeM(g,.0145,knurlM,20);this.slv=tubeM(g,.025,steelM,20);this.pl=((LOADI&&LOADI.pl)||[]).map(kg=>{const p=plateMesh(kg);g.add(p);return p;});mat(g,0,0,1.4,1.1);},
+  update(o){const E=o.E,dir=o.dir,a=E.clone().addScaledVector(dir,-.45);setTube(this.bar,this.Pv,a);setTube(this.slv,a,E);placePlates(this.pl,E.clone().addScaledVector(dir,-.17),dir.clone().negate());}});
+function chopMod(high){return mod({trOff:0,
+  setup(){this.tx=-.2;this.tz=-1.35;this.py=high?2.0:.32;this.pul=pulAt(this.tx,this.tz,this.py,-Math.PI/2);},
+  pose(s){const d=cur.dims,psi=lerp(36,-34,s)*D,{u,n}=standUN((high?lerp(14,10,s):lerp(9,16,s))*D,psi),P=V(.03,HIPY()*(high?lerp(.92,.965,s):lerp(.965,.91,s)),0);setTorso(P,u,n);
+    const st=stance(V(.03,d.ankleH,0),FX,d.hipW+.15,14*D),C1=G.S.clone().addScaledVector(nz(this.pul.clone().sub(G.S)),armL()*.93),C0=high?vsum(V(P.x,P.y,0),1,ZZ,.48,WY,-.1,FX,.34):vsum(G.S,1,ZZ,.42,WY,.36,FX,.3);
+    const C=C0.clone().lerp(C1,s).addScaledVector(FX,.16*Math.sin(Math.PI*s)),cd=nz(this.pul.clone().sub(C)),ax=nz(perp(WY,cd));
+    const o=O(Object.assign({kneePole:FX.clone(),kneeOut:.25,spine:{twist:lerp(22,-26,s)*D}},st));
+    for(const [sd,g2] of [['L',1],['R',-1]]){o.hands[sd]=vsum(C,1,ax,g2*.045*(high?1:-1),cd,-PXX());o.palm[sd]=cd.clone();o.elbowPoles[sd]=vsum(WY,-1,G.lat,g2*.4);}o.bar=C;return o;},
+  equip(){const g=eqG;this.tw=towerAt(g,this.tx,this.tz,this.py,-Math.PI/2);this.pul=this.tw.pul;this.h=handleSet(g);this.L1=Math.min(this.pul.distanceTo(this.pose(0).bar),this.pul.distanceTo(this.pose(1).bar));mat(g,0,0,1.4,1.1);},
+  update(o,J){const a=gC(J,o,'L'),b=gC(J,o,'R'),C=a.clone().add(b).multiplyScalar(.5),L=drawHandle(this.h,this.pul,C,nz(a.clone().sub(b)),nz(this.pul.clone().sub(C)));this.tw.st.lift(.02+Math.max(0,L-this.L1));}});}
+MV.chophi=chopMod(true);MV.choplo=chopMod(false);
+MV.tspine=mod({trOff:0,
+  setup(){const d=cur.dims;this.Py=.055+d.thigh*.97;this.Sy=.045+armL()*.97;},
+  pose(s){const d=cur.dims,dy=this.Sy-this.Py,ux=-Math.sqrt(Math.max(.05,d.spine*d.spine-dy*dy)),u=nz(V(ux,dy,0)),n=V(-u.y,u.x,0);
+    const P=V(.25,this.Py,0);setTorso(P,u,n);const td=nz(V(1,-.25,0));
+    const o=O({feet:{L:V(P.x+d.shin*.95,.07,d.hipW),R:V(P.x+d.shin*.95,.07,-d.hipW)},toeDir:{L:td,R:td},toeFree:true,kneePole:nz(V(-.4,-1,0)),kneeOut:.03,spine:{twist:lerp(52,-18,s)*D}});
+    const SR=SJ(-1);o.hands.R=V(SR.x,.05,SR.z);o.palm.R=XX.clone();o.handO={R:{dir:V(-1,0,0),palm:V(0,-1,0)}};o.elbowPoles.R=vsum(XX,1,ZZ,-.2);o.noCurl=true;
+    o.post=(r,wp)=>{const f=postFrame(wp);o.hands.L=vsum(f.H,1,f.lat,.11,f.n,-.05,f.u,-.03);o.elbowPoles.L=vsum(f.lat,1,f.u,-.3);};o.hands.L=SJ(1);o.bar=G.S.clone();return o;},
+  equip(){mat(eqG,.05,0,1.6,.8);}});
+MV.hip9090=mod({trOff:0,
+  setup(){this.P=V(.12,.1*prof.scale+.012,0);},
+  pose(s){const d=cur.dims,{u,n}=standUN(lerp(36,4,s)*D),P=this.P.clone();setTorso(P,u,n);const y=.08,feet={},kp={};
+    const L=[V(-.72,0,.7),V(-.7,0,-.7)],R=[V(-.7,0,-.7),V(.7,0,-.7)];
+    for(const [sd,g2,q] of [['L',1,L],['R',-1,R]]){const H=P.clone().addScaledVector(G.lat,g2*d.hipW).setY(y+.02),K=H.clone().addScaledVector(nz(q[0]),d.thigh*.97).setY(y),A=K.clone().addScaledVector(nz(q[1]),d.shin*.95).setY(y);feet[sd]=A;kp[sd]=nz(K.clone().sub(H.clone().add(A).multiplyScalar(.5)).add(V(0,.25,0)));}
+    const o=O({feet,toeDir:{L:nz(V(-.7,-.2,-.7)),R:nz(V(.7,-.2,-.7))},toeFree:true,kneePole:kp,kneeOut:0});
+    for(const [sd,g2] of [['L',1],['R',-1]]){o.hands[sd]=V(P.x-.22-.22*(1-s),.05,g2*.24);o.palm[sd]=XX.clone();o.elbowPoles[sd]=vsum(XX,1,ZZ,g2*.6);}o.handO={L:{dir:V(-1,0,0),palm:V(0,-1,0)},R:{dir:V(-1,0,0),palm:V(0,-1,0)}};o.noCurl=true;o.bar=G.S.clone();return o;},
+  equip(){mat(eqG,-.1,0,1.7,1.2);}});
+
+/* ---------------- registration ---------------- */
+const CAM2={st:{l:[0,1.0,0],r:4.5,h:1.55,yaw:-40},stS:{l:[0,1.0,0],r:4.6,h:1.5,yaw:-8},seat:{l:[.1,.95,0],r:4.4,h:1.5,yaw:-48},floor:{l:[-.05,.42,0],r:3.9,h:1.45,yaw:-26},bench:{l:[.1,.75,0],r:4.2,h:1.6,yaw:-34},hang:{l:[0,1.45,0],r:5.0,h:1.75,yaw:-34},cable:{l:[-.25,1.05,0],r:4.9,h:1.6,yaw:-42}};
+const camOf=(b,o)=>Object.assign({},CAM2[b],o||{});
+const dfk=(m,f,g,t)=>({m,f,g,t});
+const EXD2={
+ /* LEGS */
+ squat:{eq:'bb',useBar:1,mv:'squat',pht:'squat',def:dfk(60,35,20,20),cam:camOf('st',{r:4.8,h:1.5}),mus:{quads:1,glutes:.85,adductor:.6,erector:.55,hams:.35,abs:.35,calves:.2}},
+ rdl:{eq:'bb',useBar:1,mv:'rdl',pht:'pull',def:dfk(60,35,20,20),cam:camOf('stS',{yaw:-10}),mus:{hams:1,glutes:.85,erector:.7,adductor:.45,forearm:.4,traps:.3,lats:.25}},
+ db_lunge:{eq:'db',useDB:1,mv:'lunge',pht:'squat',def:dfk(12,6,4,4),cam:camOf('stS'),mus:{quads:1,glutes:.85,adductor:.5,hams:.35,calves:.25,forearm:.3,abs:.25}},
+ hip_thrust:{eq:'bb',useBar:1,mv:'thrust',pht:'gen',def:dfk(60,40,20,20),cam:camOf('bench',{l:[.1,.55,0],yaw:-22}),mus:{glutes:1,hams:.5,quads:.4,adductor:.35,erector:.3}},
+ goblet_squat:{eq:'db',useDB:1,one:1,mv:'goblet',pht:'squat',def:dfk(20,10,6,6),cam:camOf('st'),mus:{quads:1,glutes:.75,adductor:.55,abs:.45,erector:.4,biceps:.25,deltA:.25}},
+ leg_press:{eq:'machine',mv:'legpress',pht:'squat',st:10,def:dfk(100,60,40,40),cam:camOf('seat',{l:[-.1,.75,0],r:4.6,yaw:-30}),mus:{quads:1,glutes:.7,adductor:.5,hams:.25,calves:.2}},
+ leg_extension:{eq:'machine',mv:'legext',pht:'gen',def:dfk(40,25,15,15),cam:camOf('seat',{yaw:-28}),mus:{quads:1,tibialis:.15}},
+ leg_curl:{eq:'machine',mv:'legcurl',pht:'gen',def:dfk(35,20,15,12.5),cam:camOf('seat',{yaw:-28}),mus:{hams:1,calves:.35,glutes:.15}},
+ calf_raise_machine:{eq:'machine',mv:'calf',pht:'gen',def:dfk(60,40,25,20),cam:camOf('st',{l:[0,.8,0],yaw:-24}),mus:{calves:1,tibialis:.15,quads:.15,traps:.2}},
+ cable_kickback:{eq:'cable',mv:'kickback',pht:'gen',def:dfk(15,10,5,5),cam:camOf('cable',{yaw:-14}),mus:{glutes:1,hams:.45,erector:.3,abs:.25,quads:.2}},
+ bulgarian_split_squat:{eq:'bw',bwDB:1,mv:'bss',pht:'squat',def:0,cam:camOf('stS'),mus:{quads:1,glutes:.9,adductor:.5,hams:.35,calves:.25,abs:.25}},
+ glute_bridge:{eq:'bw',mv:'bridge',pht:'gen',def:0,cam:camOf('floor',{yaw:-18}),mus:{glutes:1,hams:.55,erector:.3,quads:.25,abs:.2}},
+ /* SHOULDERS */
+ ohp:{eq:'bb',useBar:1,mv:'ohp',pht:'press',def:dfk(35,20,20,20),cam:camOf('st',{l:[0,1.25,0],r:4.6,h:1.6}),mus:{deltA:1,deltL:.6,triceps:.7,traps:.45,pec:.3,serratus:.45,abs:.35,glutes:.25}},
+ db_shoulder_press:{eq:'db',useDB:1,mv:'dbohp',pht:'press',def:dfk(16,8,5,4),cam:camOf('seat',{l:[.1,1.15,0]}),mus:{deltA:1,deltL:.7,triceps:.65,traps:.4,serratus:.4,cuff:.4}},
+ lateral_raise:{eq:'db',useDB:1,mv:'lateral',pht:'fly',def:dfk(8,4,2,2),cam:camOf('st',{l:[0,1.2,0],yaw:-70}),mus:{deltL:1,traps:.55,deltA:.35,cuff:.35,forearm:.25}},
+ rear_delt_fly:{eq:'db',useDB:1,mv:'reardelt',pht:'fly',def:dfk(6,3,2,2),cam:camOf('st',{l:[0,1.0,0],yaw:-58}),mus:{deltP:1,traps:.65,cuff:.55,deltL:.4,erector:.35,hams:.2}},
+ smith_shoulder_press:{eq:'smith',useBar:1,mv:'smithohp',pht:'press',def:dfk(35,20,15,15),cam:camOf('seat',{l:[.15,1.2,0],r:4.8}),mus:{deltA:1,deltL:.55,triceps:.75,traps:.4,pec:.3}},
+ machine_shoulder_press:{eq:'machine',mv:'mohp',pht:'mpress',def:dfk(35,20,10,10),cam:camOf('seat',{l:[.1,1.15,0]}),mus:{deltA:1,deltL:.55,triceps:.7,traps:.35,pec:.25}},
+ cable_lateral_raise:{eq:'cable',mv:'clateral',pht:'fly',st:2.5,def:dfk(7.5,5,2.5,2.5),cam:camOf('cable',{l:[0,1.15,.2],yaw:-75}),mus:{deltL:1,traps:.5,deltA:.3,cuff:.4,oblique:.25}},
+ face_pull:{eq:'cable',mv:'facepull',pht:'pull',st:2.5,def:dfk(20,12.5,7.5,7.5),cam:camOf('cable',{l:[-.3,1.35,0],yaw:-35}),mus:{deltP:1,cuff:.85,traps:.7,biceps:.3,forearm:.3}},
+ pike_pushup:{eq:'bw',mv:'pike',pht:'push',def:0,cam:camOf('floor',{l:[-.1,.6,0],r:4.2,yaw:-20}),mus:{deltA:1,triceps:.75,deltL:.45,pec:.35,serratus:.5,traps:.4,abs:.35}},
+ /* BACK */
+ deadlift:{eq:'bb',useBar:1,mv:'deadlift',pht:'pull',def:dfk(80,45,25,20),cam:camOf('st',{l:[-.05,.85,0],r:4.8,yaw:-28}),mus:{glutes:1,hams:.85,erector:.95,quads:.65,traps:.6,forearm:.6,lats:.45,adductor:.5}},
+ bb_row:{eq:'bb',useBar:1,mv:'bbrow',pht:'pull',def:dfk(50,30,20,20),cam:camOf('st',{l:[-.05,.95,0],yaw:-24}),mus:{lats:1,traps:.75,deltP:.65,biceps:.55,erector:.6,forearm:.45,hams:.35}},
+ db_row:{eq:'db',useDB:1,one:1,mv:'dbrow',pht:'pull',def:dfk(24,12,8,6),cam:camOf('bench',{l:[.05,.75,0],yaw:-58}),mus:{lats:1,traps:.65,deltP:.6,biceps:.55,forearm:.4,oblique:.25}},
+ tbar_row:{eq:'pl',load:'pl',mv:'tbar',pht:'pull',def:dfk(40,20,10,10),cam:camOf('st',{l:[.2,.85,0],r:5.0,yaw:-22}),mus:{lats:1,traps:.8,deltP:.6,biceps:.55,erector:.65,forearm:.45,hams:.3}},
+ machine_row:{eq:'machine',mv:'mrow',pht:'pull',def:dfk(50,30,20,15),cam:camOf('seat',{l:[-.1,1.0,0],r:4.8,yaw:-36}),mus:{lats:1,traps:.8,deltP:.6,biceps:.5,forearm:.35}},
+ lat_pulldown:{eq:'machine',mv:'pulldown',pht:'pull',def:dfk(55,35,25,20),cam:camOf('seat',{l:[0,1.3,0],r:5.0,yaw:-40}),mus:{lats:1,biceps:.6,traps:.45,deltP:.45,forearm:.45,pec:.2,abs:.25}},
+ cable_row:{eq:'cable',mv:'crow',pht:'pull',def:dfk(50,30,20,15),cam:camOf('floor',{l:[-.2,.6,0],r:4.6,yaw:-28}),mus:{lats:1,traps:.75,deltP:.55,biceps:.5,erector:.45,forearm:.4}},
+ straight_arm_pulldown:{eq:'cable',mv:'sapd',pht:'pull',def:dfk(25,15,10,7.5),cam:camOf('cable',{l:[-.3,1.25,0],yaw:-20}),mus:{lats:1,triceps:.4,pec:.3,abs:.45,serratus:.4,deltP:.35}},
+ pullup:{eq:'bw',mv:'pullup',pht:'pull',def:0,cam:camOf('hang',{l:[0,1.5,0],r:5.2,yaw:-40}),mus:{lats:1,biceps:.7,traps:.5,deltP:.45,forearm:.6,abs:.35,pec:.25}},
+ back_extension:{eq:'bw',mv:'hyper',pht:'gen',def:0,cam:camOf('bench',{l:[.0,.75,0],r:4.3,yaw:-12}),mus:{erector:1,glutes:.8,hams:.75,adductor:.3}},
+ /* ARMS */
+ bb_curl:{eq:'bb',useBar:1,mv:'bbcurl',pht:'gen',def:dfk(25,20,20,20),cam:camOf('st',{l:[0,1.05,0],yaw:-30}),mus:{biceps:1,forearm:.65,deltA:.25,abs:.2}},
+ hammer_curl:{eq:'db',useDB:1,mv:'hammer',pht:'gen',def:dfk(12,6,4,4),cam:camOf('st',{l:[0,1.05,0],yaw:-30}),mus:{biceps:.85,forearm:1,deltA:.2}},
+ skull_crusher:{eq:'bb',useBar:1,flatBench:1,mv:'skull',pht:'press',def:dfk(25,20,20,20),cam:camOf('bench',{l:[.25,.85,0],yaw:-26}),mus:{triceps:1,deltP:.2,lats:.25,forearm:.35,pec:.2}},
+ wrist_curl:{eq:'bb',useBar:1,mv:'wrist',pht:'gen',def:dfk(20,20,20,20),cam:camOf('seat',{l:[-.2,.7,0],r:3.6,yaw:-46}),mus:{forearm:1,biceps:.15}},
+ preacher_machine:{eq:'machine',mv:'preacher',pht:'gen',def:dfk(30,15,10,10),cam:camOf('seat',{l:[0,1.0,0],yaw:-40}),mus:{biceps:1,forearm:.55}},
+ triceps_machine:{eq:'machine',mv:'triext',pht:'gen',def:dfk(35,20,12.5,10),cam:camOf('seat',{l:[0,1.0,0],yaw:-40}),mus:{triceps:1,forearm:.3}},
+ rope_pushdown:{eq:'cable',mv:'pushdown',pht:'gen',def:dfk(25,15,10,7.5),cam:camOf('cable',{l:[-.2,1.1,0],yaw:-30}),mus:{triceps:1,forearm:.35,abs:.25,lats:.2}},
+ cable_curl:{eq:'cable',mv:'ccurl',pht:'gen',def:dfk(25,15,10,7.5),cam:camOf('cable',{l:[-.2,1.05,0],yaw:-30}),mus:{biceps:1,forearm:.6,deltA:.2}},
+ bench_dip:{eq:'bw',mv:'benchdip',pht:'dip',def:0,cam:camOf('bench',{l:[.0,.6,0],r:3.9,h:1.15,yaw:-12}),mus:{triceps:1,deltA:.55,pec:.4,forearm:.3}},
+ /* CORE */
+ russian_twist:{eq:'bw',mv:'rtwist',pht:'rot',def:dfk(10,5,5,2.5),cam:camOf('floor',{l:[0,.42,0],yaw:-50}),mus:{oblique:1,abs:.8,erector:.3,deltA:.3,quads:.2}},
+ farmer_walk:{eq:'db',useDB:1,mv:'farmer',pht:'walk',def:dfk(24,12,8,6),cam:camOf('st',{yaw:-50}),mus:{forearm:1,traps:.85,abs:.6,oblique:.55,glutes:.4,quads:.35,calves:.3,erector:.5}},
+ machine_crunch:{eq:'machine',mv:'mcrunch',pht:'gen',def:dfk(40,25,15,10),cam:camOf('seat',{yaw:-30}),mus:{abs:1,oblique:.55}},
+ pallof_press:{eq:'cable',mv:'pallof',pht:'hold',def:dfk(15,10,5,5),cam:camOf('cable',{l:[-.2,1.05,.2],r:5.0,yaw:-60}),mus:{oblique:1,abs:.75,glutes:.4,deltA:.35,pec:.25,erector:.3}},
+ cable_crunch:{eq:'cable',mv:'ccrunch',pht:'gen',def:dfk(35,20,15,10),cam:camOf('cable',{l:[-.2,.8,0],yaw:-18}),mus:{abs:1,oblique:.5,lats:.25}},
+ plank:{eq:'bw',mv:'plank',pht:'hold',def:0,cam:camOf('floor',{l:[.05,.35,0],yaw:-24}),mus:{abs:1,oblique:.65,deltA:.45,glutes:.4,quads:.35,serratus:.35,erector:.3}},
+ side_plank:{eq:'bw',mv:'splank',pht:'hold',def:0,cam:camOf('floor',{l:[.05,.45,0],yaw:-4}),mus:{oblique:1,abs:.55,deltL:.4,glutes:.5,adductor:.35,cuff:.3}},
+ captains_chair:{eq:'bw',mv:'captain',pht:'gen',def:0,cam:camOf('hang',{l:[-.05,1.0,0],r:4.6,h:1.1,yaw:-22}),mus:{abs:1,oblique:.55,quads:.35,forearm:.35,lats:.25,triceps:.3}},
+ dead_bug:{eq:'bw',mv:'deadbug',pht:'mob',def:0,cam:camOf('floor',{l:[0,.4,0],yaw:-34}),mus:{abs:1,oblique:.6,quads:.25,deltA:.2}},
+ /* GOLF */
+ medball_rot_throw:{eq:'ball',load:'ball',mv:'medball',pht:'rot',def:dfk(6,4,3,2),cam:camOf('st',{l:[-.1,1.05,.65],r:5.6,h:1.6,yaw:-66}),mus:{oblique:1,abs:.7,glutes:.75,deltA:.45,pec:.4,lats:.4,quads:.4,adductor:.35}},
+ landmine_rotation:{eq:'pl',load:'pl',mv:'lmrot',pht:'rot',def:dfk(10,5,5,2.5),cam:camOf('st',{l:[-.7,.95,0],r:5.4,h:1.5,yaw:-16}),mus:{oblique:1,abs:.7,deltA:.6,glutes:.55,lats:.35,quads:.35}},
+ woodchop_high:{eq:'cable',mv:'chophi',pht:'rot',def:dfk(20,12.5,7.5,5),cam:camOf('cable',{l:[-.1,1.1,-.3],r:5.2,yaw:-62}),mus:{oblique:1,abs:.7,lats:.45,deltA:.35,glutes:.45,quads:.35,serratus:.35}},
+ woodchop_low:{eq:'cable',mv:'choplo',pht:'rot',def:dfk(20,12.5,7.5,5),cam:camOf('cable',{l:[-.1,1.0,-.3],r:5.2,yaw:-62}),mus:{oblique:1,abs:.6,deltA:.6,glutes:.55,quads:.45,traps:.3}},
+ tspine_rotation:{eq:'bw',mv:'tspine',pht:'mob',def:0,cam:camOf('floor',{l:[.0,.5,0],r:3.6,yaw:-70}),mus:{oblique:.7,erector:.6,traps:.5,deltP:.4,lats:.3}},
+ hip_90_90:{eq:'bw',mv:'hip9090',pht:'mob',def:0,cam:camOf('floor',{l:[-.1,.35,0],r:3.5,yaw:-55}),mus:{glutes:1,adductor:.7,hams:.35,erector:.4,quads:.3}}
+};
+for(const k in EXD2){const x=EXD2[k];x.ang=x.ang||0;x.ab=x.ab||[0,180];}
+Object.assign(EXD,EXD2);if(EXD2[QP.get('ex')]){EXK=QP.get('ex');EXN=EXD[EXK];LMOD=loadMods(EXN);try{setCam();}catch(e){}}
 
 /* ---------- استودیوی بدن (#view=body) ----------
    کاراکتر ایستا در استودیوی تاریک با نور سه‌نقطه‌ای، شکل‌گرفته با اندازه‌های عضو (gym_fit.js).

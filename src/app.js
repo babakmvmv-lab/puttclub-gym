@@ -3,7 +3,7 @@
    Auth: Supabase (same accounts as the academy panel — password changes / new users apply automatically).
    Data: dedicated database (schema «gym») through the single server gateway rpc/gym_api; device copy + offline queue.
    Access: «اشتراک‌ها ← ماتریس دسترسی ← باشگاه پات کلاب» per plan, enforced on the server and mirrored in the UI. */
-const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.8.0'};
+const CFG={url:'https://iultwqtzvrysugfxwshw.supabase.co',key:'sb_publishable_058vN6QjD4sUC9Mam5izUg__vjKt9d0',domain:'members.puttclub.ir',ver:'1.9.0'};
 /*GEO*/
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const fa=v=>String(v).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
@@ -398,7 +398,7 @@ function vStrength(){
   <div class="sec hist"><h3>سابقهٔ جلسات</h3><div class="list">${L.length?L.slice(-12).reverse().map(l=>{const bs=l.sets.filter(s=>s.done).sort((a,b)=>e1(b.kg,b.reps)-e1(a.kg,a.reps))[0];return `<div class="li"><span class="ic" style="background:rgba(242,193,78,.12);color:var(--r1)">${IC.train.replace('<svg','<svg width="20" height="20"')}</span><div class="tx"><b>${EX[l.ex].name}${l.s?' <span class="pill-s">نمونه</span>':''}</b><span class="num">${fmtLong.format(new Date(l.date))} · ${nf(l.nsets)} ست · بهترین ${bs?nf1(bs.kg)+'×'+nf(bs.reps):'—'}</span></div><div class="vl num c2">${nf(l.vol)}<small style="font-size:11px;color:var(--t2)"> kg</small></div></div>`;}).join(''):'<div class="li"><div class="tx"><b>جلسه‌ای ثبت نشده</b><span>از تب تمرین، اولین جلسه را شروع کنید.</span></div></div>'}</div></div>`;}
 function vMuscles(){
   const wl=weekLogs(),k=pk(),teen=k==='g'||k==='t',lo=teen?4:10,hi=teen?10:20;
-  const sets={chest:0,delt:0,tri:0};wl.forEach(l=>EX[l.ex].mus.forEach(([n,id,f])=>sets[id]+=l.nsets*f));
+  const sets={chest:0,delt:0,tri:0};wl.forEach(l=>(EX[l.ex]&&EX[l.ex].mus||[]).forEach(([n,id,f])=>sets[id]=(sets[id]||0)+l.nsets*f));
   const rows=[['سینه‌ای بزرگ','chest','var(--r1)'],['دلتوئید قدامی','delt','var(--r2)'],['سه‌سر بازو','tri','var(--r3)']];
   const rec=recovery();
   return `<div class="sec" style="margin-top:16px"><div class="card" style="padding:0;overflow:hidden"><div style="position:relative;height:340px;background:radial-gradient(60% 60% at 50% 30%,rgba(233,196,106,.1),transparent 70%)">
