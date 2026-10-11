@@ -10,7 +10,7 @@ Anatomy layer (muscle view / نمایش عضله هدف)
   which is derived from:
   * Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0 (https://github.com/Z-Anatomy/Models-of-human-anatomy)
   * BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan
-- Changes by PuttClub: meshes fitted inside each Rocketbox character (segment mapping + radial envelope fit),
-  re-skinned to the character skeletons (depth-aware weights), deep hidden muscles removed, muscle tissue subdivided,
-  per-muscle fibre fields (harmonic origin->insertion + across-fibre coordinate) computed for shading.
-  The adapted anatomy data (src/assets/anat/*) is licensed CC BY-SA 4.0.
+- Changes by PuttClub: adult/teen and female/male family-specific fits; re-skinned to each Rocketbox rig;
+  surface/deep muscle groups, bone/support/connective layers, and hand/foot anatomy are carried in the source package;
+  per-muscle fibre fields (harmonic origin->insertion + across-fibre coordinate) are used for shading.
+  The adapted anatomy data (src/assets/anat/*) is licensed CC BY-SA 4.0. These technical assets are not an expert or medical approval.
