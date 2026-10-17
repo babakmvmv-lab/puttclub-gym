@@ -27,7 +27,9 @@ jobs:
             approved|issued)
               curl -s -X PUT "${H[@]}" "$API" -d '{"cname":"gym.puttclub.ir","https_enforced":true,"source":{"branch":"main","path":"/"}}' -o /dev/null -w "enforce %{http_code}\n" ;;
             bad_authz|errored|authorization_revoked|destroy_pending)
-              if [ $(( $(date -u +%H) % 3 )) -eq 0 ]; then
+              HOUR="$(date -u +%H)"
+              HOUR=$((10#$HOUR))
+              if [ $(( HOUR % 3 )) -eq 0 ]; then
                 echo "Restarting certificate order ($STATE)…"
                 curl -s -X PUT "${H[@]}" "$API" -d '{"cname":null,"source":{"branch":"main","path":"/"}}' -o /dev/null -w "unset %{http_code}\n"
                 sleep 120
